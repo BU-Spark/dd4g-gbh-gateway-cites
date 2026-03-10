@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { fetchCities, fetchForeignBorn, fetchMapStats } from './api/cities'
 import './App.css'
 import PerCapitaComparison from './components/PerCapitaComparison'
 import CityProfile from './components/CityProfile'
 import CountryOrigins from './components/CountryOrigins'
 import MapView from './components/MapView'
-
+import TrendsView from './components/TrendsView'
+import { fetchCities, fetchForeignBorn, fetchMapStats } from './api/cities'
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Overview')
@@ -17,21 +17,31 @@ export default function App() {
 
   useEffect(() => {
     fetchCities().then(data => {
-      setCities(data)
+      const seen = new Set()
+      const unique = data.filter(c => {
+        if (seen.has(c.city)) return false
+        seen.add(c.city)
+        return true
+      })
+      setCities(unique)
+      setLoading(false)
+    }).catch(err => {
+      console.error('Failed to load cities:', err)
       setLoading(false)
     })
   }, [])
 
   useEffect(() => {
-    fetchMapStats().then(setMapStats)
+    fetchMapStats().then(setMapStats).catch(err => console.error('Failed to load map stats:', err))
   }, [])
 
   useEffect(() => {
     if (selectedCities.length === 0) {
-      fetchForeignBorn().then(setForeignBorn)
+      fetchForeignBorn().then(setForeignBorn).catch(err => console.error('Failed to load foreign born:', err))
     } else {
       Promise.all(selectedCities.map(c => fetchForeignBorn({ city: c })))
         .then(results => setForeignBorn(results.flat()))
+        .catch(err => console.error('Failed to load foreign born for cities:', err))
     }
   }, [selectedCities])
 
@@ -63,7 +73,7 @@ export default function App() {
           <div className="city-list">
             {cities.map(c => (
               <button
-                key={c.city}
+                key={`${c.city}-${c.city_type}`}
                 className={`city-btn ${c.city_type} ${selectedCities.includes(c.city) ? 'active' : ''}`}
                 onClick={() => toggleCity(c.city)}
               >
@@ -80,7 +90,7 @@ export default function App() {
 
         <main className="main">
           <div className="tabs">
-            {['Overview', 'Per Capita Comparison', 'City Profile', 'Origins', 'Map'].map(tab => (
+            {['Overview', 'Per Capita Comparison', 'City Profile', 'Origins', 'Trends', 'Map'].map(tab => (
               <button
                 key={tab}
                 className={`tab-btn ${activeTab === tab ? 'active' : ''}`}
@@ -99,15 +109,15 @@ export default function App() {
               </h2>
               <div className="bar-chart">
                 {sorted.map(d => (
-                  <div key={d.city} className="bar-row">
+                  <div key={`${d.city}-${d.year ?? 'latest'}`} className="bar-row">
                     <span className="bar-label">{d.city}</span>
                     <div className="bar-track">
                       <div
                         className={`bar-fill ${d.city_type}`}
-                        style={{ width: `${Math.min(d.fb_pct, 60) / 60 * 100}%` }}
+                        style={{ width: `${Math.min(d.fb_pct ?? 0, 60) / 60 * 100}%` }}
                       />
                     </div>
-                    <span className="bar-value">{d.fb_pct?.toFixed(1)}%</span>
+                    <span className="bar-value">{d.fb_pct?.toFixed(1) ?? 'N/A'}%</span>
                   </div>
                 ))}
               </div>
@@ -122,14 +132,11 @@ export default function App() {
           )}
 
           {activeTab === 'City Profile' && (
-            <CityProfile
-              selectedCities={selectedCities}
-            />
+            <CityProfile selectedCities={selectedCities} />
           )}
 
           {activeTab === 'Origins' && (
-            <CountryOrigins selectedCities={selectedCities}
-            />
+            <CountryOrigins selectedCities={selectedCities} />
           )}
 
           {activeTab === 'Map' && (
@@ -138,7 +145,6 @@ export default function App() {
               <p style={{ marginBottom: '12px', color: '#888', fontSize: '0.9rem' }}>
                 Loaded map rows: {mapStats.length}
               </p>
-
               <MapView
                 stats={mapStats}
                 selectedCities={selectedCities}
@@ -146,8 +152,11 @@ export default function App() {
               />
             </>
           )}
-        </main>
 
+          {activeTab === 'Trends' && (
+            <TrendsView selectedCities={selectedCities} />
+          )}
+        </main>
       </div>
     </div>
   )

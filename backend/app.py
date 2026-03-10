@@ -3,6 +3,7 @@ from flask_cors import CORS
 from services import data_store
 
 app = Flask(__name__)
+
 CORS(app)
 
 @app.get("/api/health")
@@ -52,6 +53,13 @@ def median_income():
 @app.get("/api/map-stats")
 def map_stats():
     return jsonify(data_store.get_map_stats())
+
+@app.get("/api/time-series")
+def time_series():
+    city   = request.args.get("city")
+    metric = request.args.get("metric", "fb_pct")
+    return jsonify(data_store.get_time_series(city=city, metric=metric))
+
 
 if __name__ == "__main__":
     import os

@@ -36,3 +36,11 @@ export async function fetchMapStats() {
   const res = await fetch('/api/map-stats')
   return res.json()
 }
+
+export async function fetchTimeSeries({ city, metric } = {}) {
+  const params = new URLSearchParams()
+  if (city)   params.set("city", city)
+  if (metric) params.set("metric", metric)
+  const res = await fetch(`/api/time-series?${params}`)
+  return res.json()
+}
