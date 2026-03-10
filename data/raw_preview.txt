@@ -1,0 +1,44 @@
+========== ACSDP5Y2024.DP03-Data.csv ==========
+Row 0: ['\ufeff"GEO_ID"', 'NAME', 'DP03_0001E', 'DP03_0001M', 'DP03_0002E', 'DP03_0002M', 'DP03_0003E', 'DP03_0003M']
+Row 1: ['Geography', 'Geographic Area Name', 'Estimate!!EMPLOYMENT STATUS!!Population 16 years and over', 'Margin of Error!!EMPLOYMENT STATUS!!Population 16 years and over', 'Estimate!!EMPLOYMENT STATUS!!Population 16 years and over!!In labor force', 'Margin of Error!!EMPLOYMENT STATUS!!Population 16 years and over!!In labor force', 'Estimate!!EMPLOYMENT STATUS!!Population 16 years and over!!In labor force!!Civilian labor force', 'Margin of Error!!EMPLOYMENT STATUS!!Population 16 years and over!!In labor force!!Civilian labor force']
+Row 2: ['0400000US25', 'Massachusetts', '5848392', '2037', '3917352', '8245', '3911446', '8389']
+
+========== ACSDT5Y2024.B05001-Data.csv ==========
+Row 0: ['\ufeff"GEO_ID"', 'NAME', 'B05001_001E', 'B05001_001M', 'B05001_002E', 'B05001_002M', 'B05001_003E', 'B05001_003M']
+Row 1: ['Geography', 'Geographic Area Name', 'Estimate!!Total:', 'Margin of Error!!Total:', 'Estimate!!Total:!!U.S. citizen, born in the United States', 'Margin of Error!!Total:!!U.S. citizen, born in the United States', 'Estimate!!Total:!!U.S. citizen, born in Puerto Rico or U.S. Island Areas', 'Margin of Error!!Total:!!U.S. citizen, born in Puerto Rico or U.S. Island Areas']
+Row 2: ['0400000US25', 'Massachusetts', '7044056', '*****', '5566593', '9736', '127716', '3787']
+
+========== ACSDT5Y2024.B05002-Data.csv ==========
+Row 0: ['\ufeff"GEO_ID"', 'NAME', 'B05002_001E', 'B05002_001M', 'B05002_002E', 'B05002_002M', 'B05002_003E', 'B05002_003M']
+Row 1: ['Geography', 'Geographic Area Name', 'Estimate!!Total:', 'Margin of Error!!Total:', 'Estimate!!Total:!!Native:', 'Margin of Error!!Total:!!Native:', 'Estimate!!Total:!!Native:!!Born in state of residence', 'Margin of Error!!Total:!!Native:!!Born in state of residence']
+Row 2: ['0400000US25', 'Massachusetts', '7044056', '*****', '5772850', '9721', '4135811', '11938']
+
+========== ACSDT5Y2024.B05003-Data.csv ==========
+Row 0: ['\ufeff"GEO_ID"', 'NAME', 'B05003_001E', 'B05003_001M', 'B05003_002E', 'B05003_002M', 'B05003_003E', 'B05003_003M']
+Row 1: ['Geography', 'Geographic Area Name', 'Estimate!!Total:', 'Margin of Error!!Total:', 'Estimate!!Total:!!Male:', 'Margin of Error!!Total:!!Male:', 'Estimate!!Total:!!Male:!!Under 18 years:', 'Margin of Error!!Total:!!Male:!!Under 18 years:']
+Row 2: ['0400000US25', 'Massachusetts', '7044056', '*****', '3442331', '616', '698855', '458']
+
+========== ACSDT5Y2024.B05006-Data.csv ==========
+Row 0: ['\ufeff"GEO_ID"', 'NAME', 'B05006_001E', 'B05006_001M', 'B05006_002E', 'B05006_002M', 'B05006_003E', 'B05006_003M']
+Row 1: ['Geography', 'Geographic Area Name', 'Estimate!!Total:', 'Margin of Error!!Total:', 'Estimate!!Total:!!Europe:', 'Margin of Error!!Total:!!Europe:', 'Estimate!!Total:!!Europe:!!Northern Europe:', 'Margin of Error!!Total:!!Europe:!!Northern Europe:']
+Row 2: ['0400000US25', 'Massachusetts', '1271206', '9721', '220469', '5072', '40294', '1778']
+
+========== ACSDT5Y2024.B06011-Data.csv ==========
+Row 0: ['\ufeff"GEO_ID"', 'NAME', 'B06011_001E', 'B06011_001M', 'B06011_002E', 'B06011_002M', 'B06011_003E', 'B06011_003M']
+Row 1: ['Geography', 'Geographic Area Name', 'Estimate!!Median income in the past 12 months --!!Total:', 'Margin of Error!!Median income in the past 12 months --!!Total:', 'Estimate!!Median income in the past 12 months --!!Total:!!Born in state of residence', 'Margin of Error!!Median income in the past 12 months --!!Total:!!Born in state of residence', 'Estimate!!Median income in the past 12 months --!!Total:!!Born in other state of the United States', 'Margin of Error!!Median income in the past 12 months --!!Total:!!Born in other state of the United States']
+Row 2: ['0400000US25', 'Massachusetts', '50088', '274', '48553', '317', '64882', '745']
+
+========== ACSDT5Y2024.B15002-Data.csv ==========
+Row 0: ['\ufeff"GEO_ID"', 'NAME', 'B15002_001E', 'B15002_001M', 'B15002_002E', 'B15002_002M', 'B15002_003E', 'B15002_003M']
+Row 1: ['Geography', 'Geographic Area Name', 'Estimate!!Total:', 'Margin of Error!!Total:', 'Estimate!!Total:!!Male:', 'Margin of Error!!Total:!!Male:', 'Estimate!!Total:!!Male:!!No schooling completed', 'Margin of Error!!Total:!!Male:!!No schooling completed']
+Row 2: ['0400000US25', 'Massachusetts', '4987302', '801', '2401604', '728', '48416', '2054']
+
+========== ACSDT5Y2024.B25003-Data.csv ==========
+Row 0: ['\ufeff"GEO_ID"', 'NAME', 'B25003_001E', 'B25003_001M', 'B25003_002E', 'B25003_002M', 'B25003_003E', 'B25003_003M']
+Row 1: ['Geography', 'Geographic Area Name', 'Estimate!!Total:', 'Margin of Error!!Total:', 'Estimate!!Total:!!Owner occupied', 'Margin of Error!!Total:!!Owner occupied', 'Estimate!!Total:!!Renter occupied', 'Margin of Error!!Total:!!Renter occupied']
+Row 2: ['0400000US25', 'Massachusetts', '2785042', '5182', '1741158', '8598', '1043884', '6942']
+
+========== ACSST5Y2024.S0501-Data.csv ==========
+Row 0: ['\ufeff"GEO_ID"', 'NAME', 'S0501_C01_001E', 'S0501_C01_001M', 'S0501_C01_002E', 'S0501_C01_002M', 'S0501_C01_003E', 'S0501_C01_003M']
+Row 1: ['Geography', 'Geographic Area Name', 'Estimate!!Total!!Total population', 'Margin of Error!!Total!!Total population', 'Estimate!!Total!!Total population!!SEX AND AGE!!Male', 'Margin of Error!!Total!!Total population!!SEX AND AGE!!Male', 'Estimate!!Total!!Total population!!SEX AND AGE!!Female', 'Margin of Error!!Total!!Total population!!SEX AND AGE!!Female']
+Row 2: ['0400000US25', 'Massachusetts', '7044056', '*****', '48.9', '0.1', '51.1', '0.1']
