@@ -3,7 +3,9 @@ import { fetchCities, fetchForeignBorn, fetchMapStats } from './api/cities'
 import './App.css'
 import PerCapitaComparison from './components/PerCapitaComparison'
 import CityProfile from './components/CityProfile'
+import CountryOrigins from './components/CountryOrigins'
 import MapView from './components/MapView'
+
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Overview')
@@ -78,7 +80,7 @@ export default function App() {
 
         <main className="main">
           <div className="tabs">
-            {['Overview', 'Per Capita Comparison', 'City Profile', 'Map'].map(tab => (
+            {['Overview', 'Per Capita Comparison', 'City Profile', 'Origins', 'Map'].map(tab => (
               <button
                 key={tab}
                 className={`tab-btn ${activeTab === tab ? 'active' : ''}`}
@@ -125,12 +127,24 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'Map' && (
-            <MapView
-              stats={mapStats}
-              selectedCities={selectedCities}
-              onCityClick={toggleCity}
+          {activeTab === 'Origins' && (
+            <CountryOrigins selectedCities={selectedCities}
             />
+          )}
+
+          {activeTab === 'Map' && (
+            <>
+              <h2>Gateway Cities Map</h2>
+              <p style={{ marginBottom: '12px', color: '#888', fontSize: '0.9rem' }}>
+                Loaded map rows: {mapStats.length}
+              </p>
+
+              <MapView
+                stats={mapStats}
+                selectedCities={selectedCities}
+                onCityClick={toggleCity}
+              />
+            </>
           )}
         </main>
 
@@ -138,4 +152,3 @@ export default function App() {
     </div>
   )
 }
-

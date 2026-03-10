@@ -1,140 +1,74 @@
-import { useEffect, useRef } from 'react'
-
-const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-const LEAFLET_JS  = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-const GEOJSON_URL = '/data/gateway_cities.geojson'
-
-function loadLeaflet() {
-  if (window.L) return Promise.resolve(window.L)
-  return new Promise((resolve, reject) => {
-    if (!document.querySelector('link[data-leaflet]')) {
-      const link = document.createElement('link')
-      link.rel = 'stylesheet'
-      link.href = LEAFLET_CSS
-      link.setAttribute('data-leaflet', 'true')
-      document.head.appendChild(link)
-    }
-    if (document.querySelector('script[data-leaflet]')) {
-      document.querySelector('script[data-leaflet]')
-        .addEventListener('load', () => resolve(window.L), { once: true })
-      return
-    }
-    const script = document.createElement('script')
-    script.src = LEAFLET_JS
-    script.async = true
-    script.setAttribute('data-leaflet', 'true')
-    script.onload  = () => resolve(window.L)
-    script.onerror = () => reject(new Error('Leaflet failed to load'))
-    document.body.appendChild(script)
-  })
-}
-
-// Color scale: light yellow → dark orange-red (low → high fb_pct)
-function fbPctColor(pct, max) {
-  if (pct == null || max === 0) return '#e5e7eb'
-  const t = Math.max(0, Math.min(1, pct / max))
-  const r = Math.round(254 + (185 - 254) * t)
-  const g = Math.round(240 + (28  - 240) * t)
-  const b = Math.round(217 + (28  - 217) * t)
-  return `rgb(${r},${g},${b})`
-}
+import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import cityCoordinates from "../data/cityCoordinates"
 
 export default function MapView({ stats = [], selectedCities = [], onCityClick }) {
-  const mapElRef   = useRef(null)
-  const mapRef     = useRef(null)
-  const layerRef   = useRef(null)
+  console.log("MAP DATA:", stats);
+  const safeStats = stats
+  .map(row => ({
+    city: row.city,
+    coords: cityCoordinates[row.city],
+    fb_pct: Number(row.fb_pct)
+  }))
+  .filter(row => row.coords)
+  
 
-  useEffect(() => {
-    if (!mapElRef.current || mapRef.current) return
-    let active = true
+  const getRadius = (pct) => Math.max(8, Math.min(20, pct / 2));
 
-    async function init() {
-      const L       = await loadLeaflet()
-      const [, geo] = await Promise.all([
-        Promise.resolve(),
-        fetch(GEOJSON_URL).then(r => r.json()),
-      ])
-      if (!active || !mapElRef.current) return
-
-      const map = L.map(mapElRef.current, {
-        center: [42.15, -71.85],
-        zoom: 8,
-        zoomControl: true,
-        scrollWheelZoom: true,
-      })
-
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap © CARTO',
-        subdomains: 'abcd',
-        maxZoom: 14,
-      }).addTo(map)
-
-      mapRef.current  = map
-      layerRef.current = L.layerGroup().addTo(map)
-
-      renderLayer(L, map, geo, stats, selectedCities, onCityClick)
-    }
-
-    init()
-    return () => { active = false }
-  }, []) // only on mount
-
-  // Re-render layer when stats, selection, or click handler changes
-  useEffect(() => {
-    const map = mapRef.current
-    const lg  = layerRef.current
-    if (!map || !lg || !window.L) return
-
-    fetch(GEOJSON_URL)
-      .then(r => r.json())
-      .then(geo => renderLayer(window.L, map, geo, stats, selectedCities, onCityClick))
-  }, [stats, selectedCities, onCityClick])
+  const getColor = (pct) => {
+    if (pct >= 40) return "#0f766e";
+    if (pct >= 30) return "#17795b";
+    if (pct >= 20) return "#4b5563";
+    if (pct >= 10) return "#94a3b8";
+    return "#cbd5e1";
+  };
 
   return (
-    <div ref={mapElRef} style={{ width: '100%', height: '520px', borderRadius: '8px' }} />
-  )
-}
+    <div className="map-shell" style={{ width: "100%" }}>
+      <div className="map-debug">
+        Valid mapped cities: {safeStats.length}
+      </div>
 
-function renderLayer(L, map, geo, stats, selectedCities, onCityClick) {
-  // Build lookup: normalized city name → stat row
-  const lookup = {}
-  stats.forEach(s => {
-    lookup[s.city?.trim().toLowerCase()] = s
-  })
+      <div className="map-container">
+        <MapContainer
+          center={[42.3, -71.4]}
+          zoom={8}
+          scrollWheelZoom={true}
+          className="map-leaflet"
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
 
-  const maxPct = Math.max(...stats.map(s => s.fb_pct ?? 0), 1)
-
-  // Remove old layers
-  map.eachLayer(layer => {
-    if (layer._isGatewayCity) map.removeLayer(layer)
-  })
-
-  geo.features.forEach(feature => {
-    const basename = feature.properties.BASENAME?.replace(' Town', '').trim()
-    const stat     = lookup[basename?.toLowerCase()] ?? {}
-    const isSelected = selectedCities.includes(basename)
-    const pct      = stat.fb_pct ?? null
-
-    const layer = L.geoJSON(feature, {
-      style: {
-        color:       isSelected ? '#1d4ed8' : '#6b7280',
-        weight:      isSelected ? 2.5 : 1,
-        fillColor:   fbPctColor(pct, maxPct),
-        fillOpacity: 0.75,
-      },
-    })
-    layer._isGatewayCity = true
-
-    const label = pct != null
-      ? `<strong>${basename}</strong><br/>Foreign-born: ${pct.toFixed(1)}%`
-      : `<strong>${basename}</strong><br/>No data`
-
-    layer.bindTooltip(label, { sticky: true })
-
-    layer.on('click', () => {
-      if (onCityClick) onCityClick(basename)
-    })
-
-    layer.addTo(map)
-  })
+          {safeStats.map((city) => (
+            <CircleMarker
+              key={city.city}
+              center={city.coords}
+              radius={getRadius(city.fb_pct)}
+              pathOptions={{
+                color: selectedCities.includes(city.city)
+                  ? "#ffffff"
+                  : getColor(city.fb_pct),
+                fillColor: getColor(city.fb_pct),
+                fillOpacity: 0.85,
+                weight: selectedCities.includes(city.city) ? 3 : 1.5,
+              }}
+              eventHandlers={{
+                click: () => onCityClick(city.city),
+              }}
+            >
+              <Tooltip>
+                <div>
+                  <strong>{city.city}</strong>
+                  <br />
+                  Foreign-born %: {city.fb_pct.toFixed(1)}%
+                </div>
+              </Tooltip>
+            </CircleMarker>
+          ))}
+        </MapContainer>
+      </div>
+    </div>
+  );
 }
