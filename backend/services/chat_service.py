@@ -176,6 +176,30 @@ def _foreign_born_trend(city: str) -> Dict[str, Any]:
   return {"answer": answer, "chart": chart, "analysis": analysis}
 
 
+def _statewide_averages() -> Dict[str, Any]:
+  """Compute statewide averages across all places for the latest year."""
+  fb_rows = data_store.get_foreign_born()
+  emp_rows = data_store.get_employment_income()
+  edu_rows = data_store.get_education()
+  own_rows = data_store.get_homeownership()
+  pov_rows = data_store.get_poverty()
+  inc_rows = data_store.get_median_income()
+
+  def _avg(rows, key):
+    vals = [r[key] for r in rows if r.get(key) is not None]
+    return sum(vals) / len(vals) if vals else None
+
+  return {
+    "fb_pct": _avg(fb_rows, "fb_pct"),
+    "median_household_income": _avg(emp_rows, "median_household_income"),
+    "unemployment_rate": _avg(emp_rows, "unemployment_rate"),
+    "bachelors_pct": _avg(edu_rows, "bachelors_pct"),
+    "homeownership_pct": _avg(own_rows, "homeownership_pct"),
+    "fb_poverty_pct": _avg(pov_rows, "fb_poverty_pct"),
+    "median_income_foreign_born": _avg(inc_rows, "median_income_foreign_born"),
+  }
+
+
 def _latest_snapshot(city: str) -> Dict[str, Any]:
   fb_rows = data_store.get_foreign_born(city=city)
   emp_rows = data_store.get_employment_income(city=city)
@@ -316,6 +340,622 @@ def _lowest_poverty_cities(limit: int = 5) -> Dict[str, Any]:
   return {"answer": answer, "chart": None, "analysis": analysis}
 
 
+def _greatest_fb_growth(limit: int = 5) -> Dict[str, Any]:
+  """
+  Find Gateway Cities with the greatest foreign-born population growth,
+  reporting both percentage-point change and absolute change.
+  """
+  rows = data_store.get_time_series(metric="fb_pct")
+  if not rows:
+    return {
+      "answer": (
+        "I couldn't find foreign-born time-series data to compute growth.\n\n"
+        "Source: American Community Survey 5-year estimates, 2010–2024."
+      ),
+      "chart": None,
+    }
+
+  gateway = _gateway_cities_set()
+
+  # Group rows by city, keeping earliest and latest year
+  from collections import defaultdict
+  by_city: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+  for r in rows:
+    city = r.get("city")
+    if not city or r.get("year") is None or r.get("value") is None:
+      continue
+    if gateway and city not in gateway:
+      continue
+    by_city[city].append(r)
+
+  # Also get absolute foreign-born counts from foreign_born_core
+  try:
+    import pandas as pd
+    from pathlib import Path
+    fb_df = pd.read_parquet(
+      Path(__file__).parent.parent.parent / "data" / "processed" / "foreign_born_core.parquet"
+    )
+    fb_df = fb_df[fb_df["city"].isin(gateway)] if gateway else fb_df
+  except Exception:
+    fb_df = None
+
+  pct_growth: List[tuple] = []
+  abs_growth: List[tuple] = []
+
+  for city, city_rows in by_city.items():
+    sorted_rows = sorted(city_rows, key=lambda r: r["year"])
+    start_val = sorted_rows[0]["value"]
+    end_val = sorted_rows[-1]["value"]
+    start_year = sorted_rows[0]["year"]
+    end_year = sorted_rows[-1]["year"]
+    pp_change = end_val - start_val
+    pct_growth.append((city, start_year, end_year, start_val, end_val, pp_change))
+
+    # Absolute growth from the parquet
+    if fb_df is not None:
+      city_fb = fb_df[fb_df["city"] == city].sort_values("year")
+      if len(city_fb) >= 2:
+        fb_start = city_fb.iloc[0]["foreign_born"]
+        fb_end = city_fb.iloc[-1]["foreign_born"]
+        yr_start = int(city_fb.iloc[0]["year"])
+        yr_end = int(city_fb.iloc[-1]["year"])
+        if pd.notna(fb_start) and pd.notna(fb_end):
+          abs_growth.append((city, yr_start, yr_end, int(fb_start), int(fb_end), int(fb_end - fb_start)))
+
+  # Sort descending by growth
+  pct_growth.sort(key=lambda x: x[5], reverse=True)
+  abs_growth.sort(key=lambda x: x[5], reverse=True)
+
+  top_pct = pct_growth[:limit]
+  top_abs = abs_growth[:limit]
+
+  lines = ["**Gateway Cities with greatest foreign-born population growth:**\n"]
+  lines.append("*By percentage-point increase:*")
+  for city, sy, ey, sv, ev, change in top_pct:
+    lines.append(f"- {city}: {_format_pct(sv)} ({sy}) → {_format_pct(ev)} ({ey}), +{change:.1f} pp")
+
+  if top_abs:
+    lines.append("\n*By absolute population increase:*")
+    for city, sy, ey, fb_s, fb_e, change in top_abs:
+      lines.append(f"- {city}: {fb_s:,} ({sy}) → {fb_e:,} ({ey}), +{change:,}")
+
+  answer = "\n".join(lines) + (
+    "\n\nSource: American Community Survey 5-year estimates, 2010–2024."
+  )
+
+  analysis = {
+    "type": "fb_growth_ranking",
+    "top_by_pct_point": [
+      {"city": c, "start_year": sy, "end_year": ey, "start_pct": sv, "end_pct": ev, "pp_change": ch}
+      for c, sy, ey, sv, ev, ch in top_pct
+    ],
+    "top_by_absolute": [
+      {"city": c, "start_year": sy, "end_year": ey, "start_count": fs, "end_count": fe, "abs_change": ch}
+      for c, sy, ey, fs, fe, ch in top_abs
+    ],
+  }
+
+  return {"answer": answer, "chart": None, "analysis": analysis}
+
+
+def _city_profile_with_comparison(city: str) -> Dict[str, Any]:
+  """
+  Full city profile: foreign-born rates + per-capita metrics compared to
+  statewide averages.
+  """
+  import pandas as pd
+  from pathlib import Path
+
+  PROC = Path(__file__).parent.parent.parent / "data" / "processed"
+
+  fb_rows = data_store.get_foreign_born(city=city)
+  emp_rows = data_store.get_employment_income(city=city)
+  edu_rows = data_store.get_education(city=city)
+  own_rows = data_store.get_homeownership(city=city)
+  pov_rows = data_store.get_poverty(city=city)
+  inc_rows = data_store.get_median_income(city=city)
+
+  fb = fb_rows[0] if fb_rows else {}
+  emp = emp_rows[0] if emp_rows else {}
+  edu = edu_rows[0] if edu_rows else {}
+  own = own_rows[0] if own_rows else {}
+  pov = pov_rows[0] if pov_rows else {}
+  inc = inc_rows[0] if inc_rows else {}
+
+  state_avg = _statewide_averages()
+
+  def _compare(label, city_val, state_val, fmt="pct"):
+    if city_val is None:
+      return None
+    if fmt == "pct":
+      cv, sv = _format_pct(city_val), _format_pct(state_val) if state_val else "N/A"
+    else:
+      cv, sv = _format_dollar(city_val), _format_dollar(state_val) if state_val else "N/A"
+    return f"- {label}: {cv} (statewide avg: {sv})"
+
+  # Trend data
+  ts = data_store.get_time_series(city=city, metric="fb_pct")
+  ts = sorted(ts, key=lambda r: r.get("year", 0))
+
+  parts = [f"**{city} — City Profile (latest ACS period)**\n"]
+
+  # Foreign-born section
+  parts.append("*Foreign-born population:*")
+  if fb.get("foreign_born") is not None and fb.get("total_pop"):
+    parts.append(f"- Total population: {int(fb['total_pop']):,}")
+    parts.append(f"- Foreign-born: {int(fb['foreign_born']):,}")
+  line = _compare("Foreign-born share", fb.get("fb_pct"), state_avg.get("fb_pct"))
+  if line:
+    parts.append(line)
+  if fb.get("fb_naturalized_pct") is not None:
+    parts.append(f"- Naturalized citizens: {_format_pct(fb['fb_naturalized_pct'])}")
+  if fb.get("fb_not_citizen_pct") is not None:
+    parts.append(f"- Not a citizen: {_format_pct(fb['fb_not_citizen_pct'])}")
+
+  if ts and len(ts) >= 2:
+    sy, ey = ts[0], ts[-1]
+    direction = "increased" if ey["value"] > sy["value"] else "decreased" if ey["value"] < sy["value"] else "remained flat"
+    parts.append(f"- Trend: {direction} from {_format_pct(sy['value'])} ({sy['year']}) to {_format_pct(ey['value'])} ({ey['year']})")
+
+  # Economic indicators
+  parts.append("\n*Economic indicators:*")
+  line = _compare("Median household income", emp.get("median_household_income"), state_avg.get("median_household_income"), "dollar")
+  if line:
+    parts.append(line)
+  line = _compare("Foreign-born median income", inc.get("median_income_foreign_born"), state_avg.get("median_income_foreign_born"), "dollar")
+  if line:
+    parts.append(line)
+  line = _compare("Unemployment rate", emp.get("unemployment_rate"), state_avg.get("unemployment_rate"))
+  if line:
+    parts.append(line)
+  line = _compare("Foreign-born poverty rate", pov.get("fb_poverty_pct"), state_avg.get("fb_poverty_pct"))
+  if line:
+    parts.append(line)
+
+  parts.append("\n*Education & housing:*")
+  line = _compare("Bachelor's degree+", edu.get("bachelors_pct"), state_avg.get("bachelors_pct"))
+  if line:
+    parts.append(line)
+  line = _compare("Homeownership rate", own.get("homeownership_pct"), state_avg.get("homeownership_pct"))
+  if line:
+    parts.append(line)
+
+  answer = "\n".join(parts) + "\n\nSource: American Community Survey 5-year estimates, 2010–2024."
+
+  analysis = {
+    "type": "city_profile",
+    "city": city,
+    "foreign_born_pct": fb.get("fb_pct"),
+    "foreign_born_count": fb.get("foreign_born"),
+    "total_pop": fb.get("total_pop"),
+    "median_household_income": emp.get("median_household_income"),
+    "median_income_foreign_born": inc.get("median_income_foreign_born"),
+    "unemployment_rate": emp.get("unemployment_rate"),
+    "fb_poverty_pct": pov.get("fb_poverty_pct"),
+    "bachelors_pct": edu.get("bachelors_pct"),
+    "homeownership_pct": own.get("homeownership_pct"),
+    "statewide_avg": state_avg,
+  }
+
+  chart = None
+  if ts and len(ts) >= 2:
+    chart = {
+      "type": "time_series",
+      "title": f"Foreign-born share in {city}",
+      "metric": "fb_pct",
+      "city": city,
+      "data": ts,
+    }
+
+  return {"answer": answer, "chart": chart, "analysis": analysis}
+
+
+def _granular_origins(city: str) -> Dict[str, Any]:
+  """
+  Full granular breakdown of foreign-born populations by specific country,
+  grouped by region. Goes beyond top-level categories.
+  """
+  rows = data_store.get_country_of_origin(city=city)
+  rows = [r for r in rows if r.get("estimate") is not None and r.get("estimate") > 0]
+  rows.sort(key=lambda r: r["estimate"], reverse=True)
+
+  if not rows:
+    return {
+      "answer": (
+        f"I couldn't find detailed country-of-origin data for {city}.\n\n"
+        "Source: American Community Survey 5-year estimates, 2010–2024."
+      ),
+      "chart": None,
+    }
+
+  total_fb = sum(r["estimate"] for r in rows)
+  top = rows[:15]
+
+  lines = [f"**Foreign-born population in {city} by country of origin (latest ACS):**\n"]
+  lines.append(f"Total foreign-born with country data: {total_fb:,}\n")
+
+  # Group top entries by region
+  from collections import defaultdict
+  by_region: Dict[str, List] = defaultdict(list)
+  for r in rows:
+    region = (r.get("region") or "Other").rstrip(":")
+    by_region[region].append(r)
+
+  # Show top 15 individual countries first
+  lines.append("*Top 15 countries:*")
+  for r in top:
+    country = (r.get("country") or "").rstrip(":")
+    pct = (r["estimate"] / total_fb * 100) if total_fb else 0
+    lines.append(f"- {country}: {r['estimate']:,} ({pct:.1f}%)")
+
+  # Then show regional breakdown
+  lines.append("\n*By region:*")
+  region_totals = [(reg, sum(r["estimate"] for r in rlist)) for reg, rlist in by_region.items()]
+  region_totals.sort(key=lambda x: x[1], reverse=True)
+  for reg, tot in region_totals[:8]:
+    pct = (tot / total_fb * 100) if total_fb else 0
+    top_countries = sorted(by_region[reg], key=lambda r: r["estimate"], reverse=True)[:3]
+    country_names = ", ".join((r.get("country") or "").rstrip(":") for r in top_countries)
+    lines.append(f"- {reg}: {tot:,} ({pct:.1f}%) — top: {country_names}")
+
+  answer = "\n".join(lines) + "\n\nSource: American Community Survey 5-year estimates, 2010–2024."
+
+  analysis = {
+    "type": "granular_origins",
+    "city": city,
+    "total_foreign_born": total_fb,
+    "top15": [{
+      "country": (r.get("country") or "").rstrip(":"),
+      "estimate": r["estimate"],
+      "region": r.get("region"),
+      "pct_of_total": round(r["estimate"] / total_fb * 100, 1) if total_fb else 0,
+    } for r in top],
+  }
+
+  return {"answer": answer, "chart": None, "analysis": analysis}
+
+
+def _fastest_growing_subgroups(city: str = None, limit: int = 10) -> Dict[str, Any]:
+  """
+  Find the fastest-growing foreign-born subgroups (by country) across
+  Gateway Cities, comparing earliest vs latest year in country_of_origin data.
+  """
+  import pandas as pd
+  from pathlib import Path
+
+  PROC = Path(__file__).parent.parent.parent / "data" / "processed"
+  df = pd.read_parquet(PROC / "country_of_origin.parquet")
+
+  # Filter out region labels
+  df = df[
+    ~df["country"].str.endswith(":") &
+    ~df["country"].str.startswith("Other ") &
+    ~df["country"].str.contains(", n.e.c.", regex=False)
+  ]
+
+  gateway = _gateway_cities_set()
+  if city:
+    df = df[df["city"] == city]
+  elif gateway:
+    df = df[df["city"].isin(gateway)]
+
+  df["estimate"] = pd.to_numeric(df["estimate"], errors="coerce")
+  df = df.dropna(subset=["estimate", "year"])
+
+  min_year = int(df["year"].min())
+  max_year = int(df["year"].max())
+
+  early = df[df["year"] == min_year][["city", "country", "estimate"]].rename(columns={"estimate": "early_est"})
+  late = df[df["year"] == max_year][["city", "country", "estimate"]].rename(columns={"estimate": "late_est"})
+
+  merged = early.merge(late, on=["city", "country"], how="outer").fillna(0)
+  merged["abs_change"] = merged["late_est"] - merged["early_est"]
+  # Only consider subgroups with at least 50 people in the latest year
+  merged = merged[merged["late_est"] >= 50]
+  merged = merged.sort_values("abs_change", ascending=False)
+
+  top = merged.head(limit)
+
+  if top.empty:
+    scope = city if city else "Gateway Cities"
+    return {
+      "answer": f"I couldn't find enough multi-year country-of-origin data for {scope}.\n\n"
+                "Source: American Community Survey 5-year estimates, 2010–2024.",
+      "chart": None,
+    }
+
+  scope = city if city else "Gateway Cities"
+  lines = [f"**Fastest-growing foreign-born subgroups in {scope} ({min_year}–{max_year}):**\n"]
+
+  entries = []
+  for _, row in top.iterrows():
+    c = row["city"]
+    country = row["country"]
+    e_early = int(row["early_est"])
+    e_late = int(row["late_est"])
+    change = int(row["abs_change"])
+    pct_change = ((e_late - e_early) / e_early * 100) if e_early > 0 else float("inf")
+    label = f"{country} in {c}" if not city else country
+    if pct_change == float("inf"):
+      lines.append(f"- {label}: {e_early:,} → {e_late:,} (+{change:,}, new group)")
+    else:
+      lines.append(f"- {label}: {e_early:,} → {e_late:,} (+{change:,}, +{pct_change:.0f}%)")
+    entries.append({
+      "city": c, "country": country,
+      "early_est": e_early, "late_est": e_late,
+      "abs_change": change,
+    })
+
+  answer = "\n".join(lines) + "\n\nSource: American Community Survey 5-year estimates, 2010–2024."
+
+  analysis = {
+    "type": "fastest_growing_subgroups",
+    "scope": scope,
+    "start_year": min_year,
+    "end_year": max_year,
+    "entries": entries,
+  }
+
+  return {"answer": answer, "chart": None, "analysis": analysis}
+
+
+def _economic_assimilation(city: str) -> Dict[str, Any]:
+  """
+  Economic assimilation indicators for foreign-born populations in a city:
+  income by nativity, homeownership, education, employment.
+  """
+  fb_rows = data_store.get_foreign_born(city=city)
+  emp_rows = data_store.get_employment_income(city=city)
+  edu_rows = data_store.get_education(city=city)
+  own_rows = data_store.get_homeownership(city=city)
+  pov_rows = data_store.get_poverty(city=city)
+  inc_rows = data_store.get_median_income(city=city)
+
+  fb = fb_rows[0] if fb_rows else {}
+  emp = emp_rows[0] if emp_rows else {}
+  edu = edu_rows[0] if edu_rows else {}
+  own = own_rows[0] if own_rows else {}
+  pov = pov_rows[0] if pov_rows else {}
+  inc = inc_rows[0] if inc_rows else {}
+
+  state_avg = _statewide_averages()
+
+  parts = [f"**Economic assimilation indicators for foreign-born in {city}:**\n"]
+
+  # Income
+  parts.append("*Income:*")
+  if inc.get("median_income_total") is not None:
+    parts.append(f"- Overall median income: {_format_dollar(inc['median_income_total'])}")
+  if inc.get("median_income_foreign_born") is not None:
+    parts.append(f"- Foreign-born median income: {_format_dollar(inc['median_income_foreign_born'])}")
+    if inc.get("median_income_total"):
+      gap = float(inc["median_income_foreign_born"]) - float(inc["median_income_total"])
+      gap_pct = (gap / float(inc["median_income_total"])) * 100 if float(inc["median_income_total"]) else 0
+      direction = "above" if gap >= 0 else "below"
+      parts.append(f"  → {abs(gap_pct):.1f}% {direction} overall median")
+  if emp.get("median_household_income") is not None:
+    parts.append(f"- Median household income: {_format_dollar(emp['median_household_income'])}")
+
+  # Employment
+  parts.append("\n*Employment:*")
+  if emp.get("unemployment_rate") is not None:
+    parts.append(f"- Unemployment rate: {_format_pct(emp['unemployment_rate'])} (statewide: {_format_pct(state_avg.get('unemployment_rate'))})")
+
+  # Poverty
+  parts.append("\n*Poverty:*")
+  if pov.get("fb_poverty_pct") is not None:
+    parts.append(f"- Foreign-born poverty rate: {_format_pct(pov['fb_poverty_pct'])} (statewide: {_format_pct(state_avg.get('fb_poverty_pct'))})")
+
+  # Education
+  parts.append("\n*Educational attainment:*")
+  if edu.get("bachelors_pct") is not None:
+    parts.append(f"- Bachelor's degree+: {_format_pct(edu['bachelors_pct'])} (statewide: {_format_pct(state_avg.get('bachelors_pct'))})")
+  if edu.get("advanced_pct") is not None:
+    parts.append(f"- Advanced degree: {_format_pct(edu['advanced_pct'])}")
+
+  # Housing
+  parts.append("\n*Housing:*")
+  if own.get("homeownership_pct") is not None:
+    parts.append(f"- Homeownership rate: {_format_pct(own['homeownership_pct'])} (statewide: {_format_pct(state_avg.get('homeownership_pct'))})")
+  if fb.get("fb_naturalized_pct") is not None:
+    parts.append(f"- Naturalization rate: {_format_pct(fb['fb_naturalized_pct'])}")
+
+  answer = "\n".join(parts) + "\n\nSource: American Community Survey 5-year estimates, 2010–2024."
+
+  analysis = {
+    "type": "economic_assimilation",
+    "city": city,
+    "median_income_total": inc.get("median_income_total"),
+    "median_income_foreign_born": inc.get("median_income_foreign_born"),
+    "median_household_income": emp.get("median_household_income"),
+    "unemployment_rate": emp.get("unemployment_rate"),
+    "fb_poverty_pct": pov.get("fb_poverty_pct"),
+    "bachelors_pct": edu.get("bachelors_pct"),
+    "homeownership_pct": own.get("homeownership_pct"),
+    "fb_naturalized_pct": fb.get("fb_naturalized_pct"),
+    "statewide_avg": state_avg,
+  }
+
+  return {"answer": answer, "chart": None, "analysis": analysis}
+
+
+def _economic_integration_ranking(limit: int = 5) -> Dict[str, Any]:
+  """
+  Rank Gateway Cities by strongest indicators of economic integration
+  over time: improvement in income, homeownership, education, lower poverty.
+  """
+  gateway = _gateway_cities_set()
+  metrics = {
+    "median_income": ("Median income", True),
+    "homeownership_pct": ("Homeownership", True),
+    "bachelors_pct": ("Bachelor's degree+", True),
+    "poverty_rate": ("FB poverty rate", False),
+  }
+
+  results: Dict[str, Dict[str, float]] = {}
+
+  for metric_key, (label, higher_is_better) in metrics.items():
+    rows = data_store.get_time_series(metric=metric_key)
+    if not rows:
+      continue
+    from collections import defaultdict
+    by_city: Dict[str, List] = defaultdict(list)
+    for r in rows:
+      c = r.get("city")
+      if not c or c not in gateway or r.get("value") is None:
+        continue
+      by_city[c].append(r)
+
+    for c, crows in by_city.items():
+      crows.sort(key=lambda r: r["year"])
+      if len(crows) < 2:
+        continue
+      start_v = crows[0]["value"]
+      end_v = crows[-1]["value"]
+      if start_v is None or end_v is None:
+        continue
+      change = end_v - start_v
+      if not higher_is_better:
+        change = -change  # flip so positive = improvement
+      if c not in results:
+        results[c] = {}
+      results[c][metric_key] = change
+
+  if not results:
+    return {
+      "answer": "I couldn't compute economic integration trends for Gateway Cities.\n\n"
+                "Source: American Community Survey 5-year estimates, 2010–2024.",
+      "chart": None,
+    }
+
+  # Composite score: average of normalized improvements across metrics
+  all_changes: Dict[str, List[float]] = {mk: [] for mk in metrics}
+  for c, changes in results.items():
+    for mk, v in changes.items():
+      all_changes[mk].append(v)
+
+  # Simple ranking by number of metrics where the city improved the most
+  scores: List[tuple] = []
+  for c, changes in results.items():
+    rank_sum = 0
+    count = 0
+    for mk in metrics:
+      if mk in changes:
+        all_vals = sorted(all_changes[mk], reverse=True)
+        try:
+          rank_sum += all_vals.index(changes[mk]) + 1
+        except ValueError:
+          pass
+        count += 1
+    avg_rank = rank_sum / count if count else 999
+    scores.append((c, avg_rank, changes))
+
+  scores.sort(key=lambda x: x[1])
+  top = scores[:limit]
+
+  lines = ["**Gateway Cities with strongest economic integration over time:**\n"]
+  for c, avg_rank, changes in top:
+    detail_parts = []
+    for mk, (label, hib) in metrics.items():
+      if mk in changes:
+        raw = changes[mk]
+        if mk == "median_income":
+          detail_parts.append(f"{label}: {'+' if raw >= 0 else ''}{_format_dollar(abs(raw))}")
+        else:
+          detail_parts.append(f"{label}: {'+' if raw >= 0 else ''}{raw:.1f} pp")
+    lines.append(f"- **{c}** — {'; '.join(detail_parts)}")
+
+  answer = "\n".join(lines) + "\n\nSource: American Community Survey 5-year estimates, 2010–2024."
+
+  analysis = {
+    "type": "economic_integration_ranking",
+    "cities": [{
+      "city": c,
+      "avg_rank": round(avg_rank, 1),
+      "changes": changes,
+    } for c, avg_rank, changes in top],
+  }
+
+  return {"answer": answer, "chart": None, "analysis": analysis}
+
+
+def _compare_cities(cities_to_compare: List[str]) -> Dict[str, Any]:
+  """
+  Compare multiple cities side-by-side across key metrics.
+  Automatically includes statewide averages.
+  """
+  gateway = _gateway_cities_set()
+  state_avg = _statewide_averages()
+
+  rows_data = []
+  for city in cities_to_compare:
+    fb = (data_store.get_foreign_born(city=city) or [{}])[0]
+    emp = (data_store.get_employment_income(city=city) or [{}])[0]
+    edu = (data_store.get_education(city=city) or [{}])[0]
+    own = (data_store.get_homeownership(city=city) or [{}])[0]
+    pov = (data_store.get_poverty(city=city) or [{}])[0]
+    inc = (data_store.get_median_income(city=city) or [{}])[0]
+
+    is_gw = city in gateway
+    rows_data.append({
+      "city": city,
+      "type": "Gateway" if is_gw else "Comparison",
+      "fb_pct": fb.get("fb_pct"),
+      "foreign_born": fb.get("foreign_born"),
+      "total_pop": fb.get("total_pop"),
+      "median_household_income": emp.get("median_household_income"),
+      "median_income_fb": inc.get("median_income_foreign_born"),
+      "unemployment_rate": emp.get("unemployment_rate"),
+      "fb_poverty_pct": pov.get("fb_poverty_pct"),
+      "bachelors_pct": edu.get("bachelors_pct"),
+      "homeownership_pct": own.get("homeownership_pct"),
+    })
+
+  if not rows_data:
+    return {
+      "answer": "I couldn't find data for the requested cities.\n\n"
+                "Source: American Community Survey 5-year estimates, 2010–2024.",
+      "chart": None,
+    }
+
+  lines = ["**City comparison (latest ACS period):**\n"]
+  lines.append("| Metric | " + " | ".join(r["city"] for r in rows_data) + " | Statewide Avg |")
+  lines.append("| --- | " + " | ".join("---" for _ in rows_data) + " | --- |")
+
+  metric_rows = [
+    ("Foreign-born %", "fb_pct", "pct", state_avg.get("fb_pct")),
+    ("Median HH Income", "median_household_income", "dollar", state_avg.get("median_household_income")),
+    ("FB Median Income", "median_income_fb", "dollar", state_avg.get("median_income_foreign_born")),
+    ("Unemployment", "unemployment_rate", "pct", state_avg.get("unemployment_rate")),
+    ("FB Poverty Rate", "fb_poverty_pct", "pct", state_avg.get("fb_poverty_pct")),
+    ("Bachelor's+", "bachelors_pct", "pct", state_avg.get("bachelors_pct")),
+    ("Homeownership", "homeownership_pct", "pct", state_avg.get("homeownership_pct")),
+  ]
+
+  for label, key, fmt, state_val in metric_rows:
+    cells = []
+    for r in rows_data:
+      v = r.get(key)
+      if v is None:
+        cells.append("N/A")
+      elif fmt == "pct":
+        cells.append(_format_pct(v))
+      else:
+        cells.append(_format_dollar(v))
+    sv = _format_pct(state_val) if fmt == "pct" else _format_dollar(state_val) if state_val else "N/A"
+    lines.append(f"| {label} | " + " | ".join(cells) + f" | {sv} |")
+
+  answer = "\n".join(lines) + "\n\nSource: American Community Survey 5-year estimates, 2010–2024."
+
+  analysis = {
+    "type": "city_comparison",
+    "cities": rows_data,
+    "statewide_avg": state_avg,
+  }
+
+  return {"answer": answer, "chart": None, "analysis": analysis}
+
+
 def _lowest_foreign_born_cities(limit: int = 5) -> Dict[str, Any]:
   """
   Find Gateway Cities with the lowest foreign-born share (fb_pct) using the
@@ -393,36 +1033,139 @@ def _offline_chat(message: str) -> Dict[str, Any]:
   lower = text.lower()
   cities = _find_cities_in_text(lower)
 
-  # 1) Trend questions.
+  # ── 1) Comparison questions (Boston, Cambridge, statewide, compare) ──
+  comparison_keywords = ["compare", "comparison", "vs", "versus", "compared to"]
+  comparison_cities_map = {
+    "boston": "Boston",
+    "cambridge": "Cambridge",
+    "weymouth": "Weymouth Town",
+    "marlborough": "Marlborough",
+    "somerville": "Somerville",
+  }
+  if any(kw in lower for kw in comparison_keywords) or (
+    "how do" in lower and "gateway" in lower
+  ):
+    # Build list of cities to compare
+    compare_list = []
+    # Add any explicitly mentioned cities
+    for kw, cname in comparison_cities_map.items():
+      if kw in lower:
+        compare_list.append(cname)
+    # If no specific comparison cities, use defaults
+    if not compare_list:
+      compare_list = ["Boston", "Cambridge", "Marlborough"]
+    # Add a few representative Gateway Cities
+    gateway = _gateway_cities_set()
+    gw_sample = sorted(gateway)[:5]  # first 5 alphabetically
+    # If user mentioned specific gateway cities, use those
+    gw_mentioned = [c for c in cities if c in gateway]
+    if gw_mentioned:
+      gw_sample = gw_mentioned
+    all_cities = gw_sample + [c for c in compare_list if c not in gw_sample]
+    return _compare_cities(all_cities)
+
+  # ── 2) Economic assimilation / integration questions ──
+  econ_keywords = ["economic", "assimilation", "integration", "income by nativity",
+                   "housing pattern", "economic indicator"]
+  if any(kw in lower for kw in econ_keywords):
+    # If asking about ranking/strongest integration across cities
+    if any(kw in lower for kw in ["strongest", "which cities", "which city",
+                                   "ranking", "best", "most integrated"]):
+      return _economic_integration_ranking()
+    # If a specific city is mentioned
+    if cities:
+      return _economic_assimilation(cities[0])
+    # Default: ranking
+    return _economic_integration_ranking()
+
+  # ── 3) Fastest-growing subgroups ──
+  if ("fastest" in lower or "growing" in lower or "growth" in lower) and (
+    "subgroup" in lower or "country" in lower or "origin" in lower
+    or "vietnamese" in lower or "brazilian" in lower or "dominican" in lower
+    or "chinese" in lower or "indian" in lower
+  ):
+    if cities:
+      return _fastest_growing_subgroups(city=cities[0])
+    return _fastest_growing_subgroups()
+
+  # ── 4) City profile / "how has ... changed" questions ──
+  if cities and (
+    "profile" in lower or "how has" in lower or "changed" in lower
+    or "overview" in lower or ("population" in lower and "change" in lower)
+  ):
+    return _city_profile_with_comparison(cities[0])
+
+  # ── 5) Trend questions ──
   if cities and ("trend" in lower or "over time" in lower or "since" in lower):
     city = cities[0]
     return _foreign_born_trend(city)
 
-  # 2) Country-of-origin questions.
-  if cities and ("origin" in lower or "origins" in lower or "country" in lower):
-    city = cities[0]
-    return _top_origins(city)
+  # ── 6) Granular country-of-origin (breakdown, specific countries) ──
+  granular_keywords = ["breakdown", "granular", "specific country", "by country",
+                       "chinese", "vietnamese", "indian", "filipino", "korean",
+                       "brazilian", "dominican", "guatemalan", "colombian",
+                       "haitian", "salvadoran"]
+  if any(kw in lower for kw in granular_keywords):
+    if cities:
+      return _granular_origins(cities[0])
+    # If asking about origin/breakdown across all gateway cities
+    if "origin" in lower or "breakdown" in lower:
+      # Pick a representative gateway city or show the ask
+      gateway = _gateway_cities_set()
+      # Return for all gateway cities – pick the one most asked about
+      return _fastest_growing_subgroups()
 
-  # 2b) Poverty ranking across Gateway Cities.
+  # ── 7) Country-of-origin (simple) ──
+  if cities and ("origin" in lower or "origins" in lower or "country" in lower
+                 or "where" in lower):
+    city = cities[0]
+    return _granular_origins(city)
+
+  # ── 8) Poverty ranking ──
   if ("poverty" in lower or "poor" in lower) and (
     "lowest" in lower or "low" in lower
   ):
-    # Question like: "Which Gateway Cities have the lowest foreign-born poverty rates?"
     return _lowest_poverty_cities()
 
-  # 2c) Lowest foreign-born share across Gateway Cities.
+  # ── 9) Lowest foreign-born share ──
   if ("foreign-born" in lower or "foreign born" in lower) and (
     "lowest" in lower or "low" in lower
   ):
-    # Question like: "Which Gateway City has the lowest foreign-born share?"
     return _lowest_foreign_born_cities()
 
-  # 3) Single-city snapshot.
+  # ── 10) Foreign-born growth across Gateway Cities ──
+  if ("foreign-born" in lower or "foreign born" in lower or "immigrant" in lower) and (
+    "growth" in lower or "increase" in lower or "grew" in lower or "rising" in lower
+    or "fastest" in lower or "greatest" in lower or "most" in lower
+  ):
+    return _greatest_fb_growth()
+
+  # ── 11) "How has foreign-born population changed in each gateway city" ──
+  if ("how" in lower and ("changed" in lower or "change" in lower)) and (
+    "foreign" in lower or "immigrant" in lower
+  ) and ("gateway" in lower or "each" in lower):
+    return _greatest_fb_growth()
+
+  # ── 12) Census tract question (acknowledge limitation) ──
+  if "census tract" in lower or "tract level" in lower or "tract-level" in lower:
+    return {
+      "answer": (
+        "Census tract-level data within cities is not currently available in this dashboard. "
+        "The ACS data here covers place-level (city/town) geography. "
+        "For sub-city analysis, consider using data.census.gov or NHGIS to download "
+        "tract-level ACS tables (e.g., B05001 for nativity) for specific cities.\n\n"
+        "Source: American Community Survey 5-year estimates, 2010–2024."
+      ),
+      "chart": None,
+      "analysis": {"type": "limitation", "topic": "census_tract"},
+    }
+
+  # ── 13) Single-city snapshot (default for city mention) ──
   if cities:
     city = cities[0]
-    return _latest_snapshot(city)
+    return _city_profile_with_comparison(city)
 
-  # 4) General overview: top foreign-born cities.
+  # ── 14) General overview: top foreign-born cities ──
   fb_rows = data_store.get_foreign_born()
   if fb_rows:
     avg = sum((r.get("fb_pct") or 0) for r in fb_rows) / max(len(fb_rows), 1)
