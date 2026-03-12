@@ -20,6 +20,52 @@ const STAT_KEYS = [
   { key: 'median_household_income', label: 'Median Household Income', format: '$' },
 ]
 
+const NORTH_AMERICA_ORIGINS = new Set([
+  'Bahamas',
+  'Barbados',
+  'Belize',
+  'Canada',
+  'Costa Rica',
+  'Cuba',
+  'Dominica',
+  'Dominican Republic',
+  'El Salvador',
+  'Grenada',
+  'Guatemala',
+  'Haiti',
+  'Honduras',
+  'Jamaica',
+  'Mexico',
+  'Nicaragua',
+  'Panama',
+  'St. Lucia',
+  'St. Vincent and the Grenadines',
+  'Trinidad and Tobago',
+])
+
+const SOUTH_AMERICA_ORIGINS = new Set([
+  'Argentina',
+  'Bolivia',
+  'Brazil',
+  'Chile',
+  'Colombia',
+  'Ecuador',
+  'Guyana',
+  'Peru',
+  'Uruguay',
+  'Venezuela',
+])
+
+const REGION_ORDER = [
+  'Africa',
+  'Asia',
+  'Europe',
+  'North America',
+  'South America',
+  'Oceania',
+  'Other',
+]
+
 const CITY_COLORS = [
   '#4e9af1', '#f0a64a', '#a78bfa', '#34d399', '#f87171',
   '#facc15', '#38bdf8', '#fb923c',
@@ -43,6 +89,22 @@ const averageOf = (rows, key) => {
 
 const cleanCountryLabel = (label) =>
   String(label || '').replace(/:$/, '').trim()
+
+const normalizeRegion = (row) => {
+  const rawRegion = String(row.region || '').replace(/:$/, '').trim()
+  const country = cleanCountryLabel(row.country)
+
+  if (rawRegion === 'America') {
+    if (NORTH_AMERICA_ORIGINS.has(country)) return 'North America'
+    if (SOUTH_AMERICA_ORIGINS.has(country)) return 'South America'
+  }
+
+  if (['Africa', 'Asia', 'Europe', 'Oceania'].includes(rawRegion)) {
+    return rawRegion
+  }
+
+  return 'Other'
+}
 
 const downloadCSV = (filename, rows) => {
   if (!rows || !rows.length) return
@@ -77,6 +139,7 @@ export default function CityProfile({ selectedCities }) {
   const [profiles, setProfiles] = useState([])
   const [stateAvg, setStateAvg] = useState(null)
   const [origins, setOrigins] = useState({})
+  const [regionOrigins, setRegionOrigins] = useState({})
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -95,6 +158,38 @@ export default function CityProfile({ selectedCities }) {
         const eduRow = Array.isArray(edu) ? edu[0] : edu
         const ownRow = Array.isArray(own) ? own[0] : own
 
+        const originRows = (orig || [])
+          .map((row) => ({
+            ...row,
+            country: cleanCountryLabel(row.country),
+          }))
+          .filter((row) => row.country && row.estimate != null)
+
+        const regionTotals = new Map()
+        let totalOrigins = 0
+
+        originRows.forEach((row) => {
+          const est = Number(row.estimate) || 0
+          if (!est) return
+          const reg = normalizeRegion(row)
+          totalOrigins += est
+          regionTotals.set(reg, (regionTotals.get(reg) || 0) + est)
+        })
+
+        const regions = REGION_ORDER.map((reg) => {
+          const est = regionTotals.get(reg) || 0
+          return {
+            region: reg,
+            estimate: est,
+            share: totalOrigins > 0 ? (est / totalOrigins) * 100 : 0,
+          }
+        }).filter((r) => r.estimate > 0)
+
+        const topOrigins = originRows
+          .slice()
+          .sort((a, b) => b.estimate - a.estimate)
+          .slice(0, 10)
+
         return {
           profile: {
             city,
@@ -105,14 +200,8 @@ export default function CityProfile({ selectedCities }) {
             bachelors_pct: eduRow?.bachelors_pct,
             homeownership_pct: ownRow?.homeownership_pct,
           },
-          origins: (orig || [])
-            .map((row) => ({
-              ...row,
-              country: cleanCountryLabel(row.country),
-            }))
-            .filter((row) => row.country && row.estimate != null)
-            .sort((a, b) => b.estimate - a.estimate)
-            .slice(0, 10),
+          origins: topOrigins,
+          regions,
         }
       }),
     )
@@ -132,14 +221,17 @@ export default function CityProfile({ selectedCities }) {
 
         const profs = []
         const origs = {}
+        const regionOrigs = {}
 
         results.forEach((r) => {
           profs.push(r.profile)
           origs[r.profile.city] = r.origins
+          regionOrigs[r.profile.city] = r.regions
         })
 
         setProfiles(profs)
         setOrigins(origs)
+        setRegionOrigins(regionOrigs)
         setStateAvg({
           fb_pct: averageOf(allFb, 'fb_pct'),
           unemployment_rate: averageOf(allEmp, 'unemployment_rate'),
@@ -292,6 +384,47 @@ export default function CityProfile({ selectedCities }) {
               </ResponsiveContainer>
             </>
           )}
+          {regionOrigins[profile.city]?.length > 0 && (
+            <>
+              <h3 style={{ marginBottom: '0.75rem', marginTop: '2rem' }}>Regions of Origin</h3>
+              <ResponsiveContainer
+                width="100%"
+                height={Math.max(260, (regionOrigins[profile.city].length || 1) * 40 + 40)}
+              >
+                <BarChart
+                  data={regionOrigins[profile.city]}
+                  layout="vertical"
+                  margin={{ top: 8, right: 24, left: 130, bottom: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis
+                    type="number"
+                    tick={{ fill: '#aaa' }}
+                    tickFormatter={(v) => v.toLocaleString()}
+                  />
+                  <YAxis
+                    dataKey="region"
+                    type="category"
+                    tick={{ fill: '#aaa' }}
+                    width={160}
+                    interval={0}
+                  />
+                  <Tooltip
+                    formatter={(val, name, props) => [
+                      `${Number(val).toLocaleString()} (${props.payload.share.toFixed(1)}%)`,
+                      'Estimate',
+                    ]}
+                    contentStyle={{
+                      background: '#1e1e2e',
+                      border: '1px solid #444',
+                      color: '#fff',
+                    }}
+                  />
+                  <Bar dataKey="estimate" fill="#a78bfa" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </>
+          )}
         </>
       ) : (
         <>
@@ -399,6 +532,73 @@ export default function CityProfile({ selectedCities }) {
               </tbody>
             </table>
           </div>
+
+          {(() => {
+            const allRegions = REGION_ORDER.filter((reg) =>
+              profiles.some((p) =>
+                (regionOrigins[p.city] || []).some((r) => r.region === reg),
+              ),
+            )
+
+            if (!allRegions.length) return null
+
+            return (
+              <div style={{ overflowX: 'auto', marginBottom: '2rem' }}>
+                <h3 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>
+                  Region of Origin Breakdown (Share of Foreign-Born)
+                </h3>
+                <table
+                  style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}
+                >
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #2a2a3a' }}>
+                      <th
+                        style={{ textAlign: 'left', padding: '0.75rem 0.5rem', color: '#aaa' }}
+                      >
+                        Region
+                      </th>
+                      {profiles.map((p, i) => (
+                        <th
+                          key={p.city}
+                          style={{
+                            textAlign: 'right',
+                            padding: '0.75rem 0.5rem',
+                            color: CITY_COLORS[i % CITY_COLORS.length],
+                          }}
+                        >
+                          {p.city}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allRegions.map((reg) => (
+                      <tr key={reg} style={{ borderBottom: '1px solid #1e1e2e' }}>
+                        <td style={{ padding: '0.6rem 0.5rem', color: '#ccc' }}>{reg}</td>
+                        {profiles.map((p) => {
+                          const row =
+                            (regionOrigins[p.city] || []).find((r) => r.region === reg) || null
+                          const share = row?.share
+                          return (
+                            <td
+                              key={p.city}
+                              style={{
+                                textAlign: 'right',
+                                padding: '0.6rem 0.5rem',
+                                color: '#fff',
+                              }}
+                            >
+                              {share == null ? 'N/A' : `${share.toFixed(1)}%`}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()}
 
           {STAT_KEYS.map((s) => {
             const chartData = profiles

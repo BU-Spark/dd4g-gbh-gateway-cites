@@ -8,6 +8,42 @@ import {
 const ACCENT = '#4e9af1'
 const ACCENT2 = '#f1914e'
 
+const NORTH_AMERICA_ORIGINS = new Set([
+  'Bahamas',
+  'Barbados',
+  'Belize',
+  'Canada',
+  'Costa Rica',
+  'Cuba',
+  'Dominica',
+  'Dominican Republic',
+  'El Salvador',
+  'Grenada',
+  'Guatemala',
+  'Haiti',
+  'Honduras',
+  'Jamaica',
+  'Mexico',
+  'Nicaragua',
+  'Panama',
+  'St. Lucia',
+  'St. Vincent and the Grenadines',
+  'Trinidad and Tobago',
+])
+
+const SOUTH_AMERICA_ORIGINS = new Set([
+  'Argentina',
+  'Bolivia',
+  'Brazil',
+  'Chile',
+  'Colombia',
+  'Ecuador',
+  'Guyana',
+  'Peru',
+  'Uruguay',
+  'Venezuela',
+])
+
 const NON_COUNTRY_LABELS = new Set([
   'Africa',
   'Europe',
@@ -46,7 +82,8 @@ const isRealCountry = (name) => {
 const REGION_OPTIONS = [
   { value: 'all',       label: 'All regions' },
   { value: 'Africa',    label: 'Africa' },
-  { value: 'America', label: 'America' },
+  { value: 'North America', label: 'North America' },
+  { value: 'South America', label: 'South America' },
   { value: 'Asia',      label: 'Asia' },
   { value: 'Europe',    label: 'Europe' },
   { value: 'Oceania',   label: 'Oceania' },
@@ -71,6 +108,19 @@ const [region, setRegion] = useState('all')
 
 const filteredData = useMemo(() => {
   if (region === 'all') return allData
+
+  if (region === 'North America') {
+    return allData.filter(
+      r => r.region === 'America' && NORTH_AMERICA_ORIGINS.has(String(r.country).trim())
+    )
+  }
+
+  if (region === 'South America') {
+    return allData.filter(
+      r => r.region === 'America' && SOUTH_AMERICA_ORIGINS.has(String(r.country).trim())
+    )
+  }
+
   return allData.filter(r => r.region === region)
 }, [allData, region])
 
