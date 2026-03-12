@@ -289,6 +289,78 @@ body {
 }
 
 /* =========================
+   City Profile
+========================= */
+
+.city-profile-wrap {
+  padding: 1rem;
+}
+
+.city-profile-title {
+  margin-bottom: 0.25rem;
+}
+
+.city-profile-subtitle {
+  color: #aaa;
+  margin-bottom: 1.5rem;
+  text-transform: capitalize;
+}
+
+.city-profile-stats {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+}
+
+.city-profile-card {
+  background: #1e1e2e;
+  border-radius: 10px;
+  padding: 1rem;
+  min-width: 160px;
+  flex: 1;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.city-profile-card-label {
+  font-size: 0.75rem;
+  color: #aaa;
+}
+
+.city-profile-card-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+  margin-top: 0.35rem;
+}
+
+.city-profile-card-meta {
+  font-size: 0.78rem;
+  color: #888;
+  margin-top: 0.85rem;
+  border-top: 1px solid #2a2a3a;
+  padding-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.city-profile-card-delta.positive {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.city-profile-card-delta.negative {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.city-profile-chart-title {
+  margin-bottom: 0.75rem;
+}
+
+/* =========================
    Map styles
 ========================= */
 

@@ -44,3 +44,9 @@ export async function fetchTimeSeries({ city, metric } = {}) {
   const res = await fetch(`/api/time-series?${params}`)
   return res.json()
 }
+
+export async function fetchStateAverages() {
+  const res = await fetch('/api/state-averages')
+  if (!res.ok) throw new Error('Failed to fetch state averages')
+  return res.json()
+}
