@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from dotenv import load_dotenv
+import os
 try:
     from backend.services import data_store, chat_service
 except ModuleNotFoundError:
@@ -11,7 +12,10 @@ load_dotenv()
 
 app = Flask(__name__)
 
-CORS(app)
+CORS(
+    app,
+    resources={r"/api/*": {"origins": "*"}}
+)
 
 @app.get("/api/health")
 def health():
@@ -106,13 +110,13 @@ def chat():
                 )
             }
         ), 200
-import os
+
 print("RUNNING FILE:", os.path.abspath(__file__))
 print("URL MAP:", app.url_map)
 
 if __name__ == "__main__":
-    import os
+
     port = int(os.environ.get("PORT", 3000))
     print(f"Running at http://localhost:{port}")
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=False)
     
