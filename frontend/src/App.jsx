@@ -224,7 +224,7 @@ export default function App() {
 
           <div className="city-type-group">
             <p className="type-label gateway">● Gateway Cities</p>
-            <p className="type-label other">● Other</p>
+            <p className="type-label other">● Other Municipalities</p>
           </div>
 
           <div className="city-search-wrap">
