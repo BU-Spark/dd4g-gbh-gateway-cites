@@ -8,9 +8,12 @@ import {
   fetchEducation,
   fetchHomeownership,
   fetchCountryOfOrigin,
+  fetchStateProfile,
+  fetchStateCountryOfOrigin,
 } from '../api/cities'
 
-const DEFAULT_CITY = 'Boston'
+const STATEWIDE_KEY = '__MA_STATEWIDE__'
+const DEFAULT_CITY = STATEWIDE_KEY
 
 const STAT_KEYS = [
   { key: 'fb_pct', label: 'Foreign-Born %', format: '%' },
@@ -137,16 +140,76 @@ const downloadCSV = (filename, rows) => {
 export default function CityProfile({ selectedCities }) {
   const citiesToShow = selectedCities.length > 0 ? selectedCities : [DEFAULT_CITY]
   const [profiles, setProfiles] = useState([])
-  const [stateAvg, setStateAvg] = useState(null)
+  const [stateBenchmark, setStateBenchmark] = useState(null)
   const [origins, setOrigins] = useState({})
   const [regionOrigins, setRegionOrigins] = useState({})
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     setLoading(true)
+    setError(null)
 
-    const cityFetches = citiesToShow.map((city) =>
-      Promise.all([
+    const buildOriginBreakdowns = (orig) => {
+      const originRows = (orig || [])
+        .map((row) => ({
+          ...row,
+          country: cleanCountryLabel(row.country),
+        }))
+        .filter((row) => row.country && row.estimate != null)
+
+      const regionTotals = new Map()
+      let totalOrigins = 0
+
+      originRows.forEach((row) => {
+        const est = Number(row.estimate) || 0
+        if (!est) return
+        const reg = normalizeRegion(row)
+        totalOrigins += est
+        regionTotals.set(reg, (regionTotals.get(reg) || 0) + est)
+      })
+
+      const regions = REGION_ORDER.map((reg) => {
+        const est = regionTotals.get(reg) || 0
+        return {
+          region: reg,
+          estimate: est,
+          share: totalOrigins > 0 ? (est / totalOrigins) * 100 : 0,
+        }
+      }).filter((r) => r.estimate > 0)
+
+      const topOrigins = originRows
+        .slice()
+        .sort((a, b) => b.estimate - a.estimate)
+        .slice(0, 10)
+
+      return { topOrigins, regions }
+    }
+
+    const cityFetches = citiesToShow.map((city) => {
+      if (city === STATEWIDE_KEY) {
+        return Promise.all([fetchStateProfile(), fetchStateCountryOfOrigin()]).then(
+          ([stateProfile, stateOrigins]) => {
+            const { topOrigins, regions } = buildOriginBreakdowns(stateOrigins)
+            return {
+              profile: {
+                city: 'Massachusetts',
+                city_type: 'state',
+                fb_pct: stateProfile?.fb_pct,
+                unemployment_rate: stateProfile?.unemployment_rate,
+                median_household_income: stateProfile?.median_household_income,
+                bachelors_pct: stateProfile?.bachelors_pct,
+                homeownership_pct: stateProfile?.homeownership_pct,
+                year: stateProfile?.year,
+              },
+              origins: topOrigins,
+              regions,
+            }
+          },
+        )
+      }
+
+      return Promise.all([
         fetchForeignBorn({ city }),
         fetchEmploymentIncome(city),
         fetchEducation(city),
@@ -158,37 +221,7 @@ export default function CityProfile({ selectedCities }) {
         const eduRow = Array.isArray(edu) ? edu[0] : edu
         const ownRow = Array.isArray(own) ? own[0] : own
 
-        const originRows = (orig || [])
-          .map((row) => ({
-            ...row,
-            country: cleanCountryLabel(row.country),
-          }))
-          .filter((row) => row.country && row.estimate != null)
-
-        const regionTotals = new Map()
-        let totalOrigins = 0
-
-        originRows.forEach((row) => {
-          const est = Number(row.estimate) || 0
-          if (!est) return
-          const reg = normalizeRegion(row)
-          totalOrigins += est
-          regionTotals.set(reg, (regionTotals.get(reg) || 0) + est)
-        })
-
-        const regions = REGION_ORDER.map((reg) => {
-          const est = regionTotals.get(reg) || 0
-          return {
-            region: reg,
-            estimate: est,
-            share: totalOrigins > 0 ? (est / totalOrigins) * 100 : 0,
-          }
-        }).filter((r) => r.estimate > 0)
-
-        const topOrigins = originRows
-          .slice()
-          .sort((a, b) => b.estimate - a.estimate)
-          .slice(0, 10)
+        const { topOrigins, regions } = buildOriginBreakdowns(orig)
 
         return {
           profile: {
@@ -203,21 +236,12 @@ export default function CityProfile({ selectedCities }) {
           origins: topOrigins,
           regions,
         }
-      }),
-    )
+      })
+    })
 
-    Promise.all([
-      ...cityFetches,
-      fetchForeignBorn(),
-      fetchEmploymentIncome(),
-      fetchEducation(),
-      fetchHomeownership(),
-    ])
+    Promise.all([...cityFetches, fetchStateProfile()])
       .then((results) => {
-        const allOwn = results.pop()
-        const allEdu = results.pop()
-        const allEmp = results.pop()
-        const allFb = results.pop()
+        const state = results.pop()
 
         const profs = []
         const origs = {}
@@ -232,17 +256,19 @@ export default function CityProfile({ selectedCities }) {
         setProfiles(profs)
         setOrigins(origs)
         setRegionOrigins(regionOrigs)
-        setStateAvg({
-          fb_pct: averageOf(allFb, 'fb_pct'),
-          unemployment_rate: averageOf(allEmp, 'unemployment_rate'),
-          bachelors_pct: averageOf(allEdu, 'bachelors_pct'),
-          homeownership_pct: averageOf(allOwn, 'homeownership_pct'),
-          median_household_income: averageOf(allEmp, 'median_household_income'),
+        setStateBenchmark({
+          fb_pct: state?.fb_pct,
+          unemployment_rate: state?.unemployment_rate,
+          bachelors_pct: state?.bachelors_pct,
+          homeownership_pct: state?.homeownership_pct,
+          median_household_income: state?.median_household_income,
+          year: state?.year,
         })
         setLoading(false)
       })
       .catch((err) => {
         console.error('Failed to load city profile:', err)
+        setError(err?.message || 'Failed to load City Profile data')
         setLoading(false)
       })
   }, [citiesToShow.join(',')])
@@ -260,11 +286,11 @@ export default function CityProfile({ selectedCities }) {
         bachelors_pct: p.bachelors_pct,
         homeownership_pct: p.homeownership_pct,
         median_household_income: p.median_household_income,
-        ma_avg_fb_pct: stateAvg?.fb_pct,
-        ma_avg_unemployment_rate: stateAvg?.unemployment_rate,
-        ma_avg_bachelors_pct: stateAvg?.bachelors_pct,
-        ma_avg_homeownership_pct: stateAvg?.homeownership_pct,
-        ma_avg_median_household_income: stateAvg?.median_household_income,
+        ma_state_fb_pct: stateBenchmark?.fb_pct,
+        ma_state_unemployment_rate: stateBenchmark?.unemployment_rate,
+        ma_state_bachelors_pct: stateBenchmark?.bachelors_pct,
+        ma_state_homeownership_pct: stateBenchmark?.homeownership_pct,
+        ma_state_median_household_income: stateBenchmark?.median_household_income,
       }))
 
       const originRows = profiles.flatMap((p) =>
@@ -286,12 +312,28 @@ export default function CityProfile({ selectedCities }) {
 
     window.addEventListener('download-active-tab', handleDownload)
     return () => window.removeEventListener('download-active-tab', handleDownload)
-  }, [profiles, origins, stateAvg])
+  }, [profiles, origins, stateBenchmark])
 
-  if (loading || profiles.length === 0) {
+  if (loading) {
     return (
       <div className="placeholder">
         <p>Loading...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="placeholder">
+        <p style={{ color: '#f87171' }}>{error}</p>
+      </div>
+    )
+  }
+
+  if (profiles.length === 0) {
+    return (
+      <div className="placeholder">
+        <p>No profile data available.</p>
       </div>
     )
   }
@@ -305,13 +347,13 @@ export default function CityProfile({ selectedCities }) {
         <>
           <h2 style={{ marginBottom: '0.25rem' }}>{profile.city}</h2>
           <p style={{ color: '#aaa', marginBottom: '1.5rem', textTransform: 'capitalize' }}>
-            {profile.city_type} City
+            {profile.city_type === 'state' ? 'Statewide' : `${profile.city_type} City`}
           </p>
 
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
             {STAT_KEYS.map((s) => {
               const val = profile[s.key]
-              const stVal = stateAvg?.[s.key]
+              const stVal = stateBenchmark?.[s.key]
               const diff = val != null && stVal != null ? val - stVal : null
 
               return (
@@ -332,14 +374,14 @@ export default function CityProfile({ selectedCities }) {
                   {stVal != null && (
                     <div
                       style={{
-                        fontSize: '0.75rem',
+                        fontSize: '0.9rem',
                         color: '#888',
                         marginTop: '0.5rem',
                         borderTop: '1px solid #2a2a3a',
                         paddingTop: '0.5rem',
                       }}
                     >
-                      <span>MA Avg: {formatVal(stVal, s.format)}</span>
+                      <span>MA Statewide: {formatVal(stVal, s.format)}</span>
                       {diff != null && (
                         <span
                           style={{
@@ -457,7 +499,7 @@ export default function CityProfile({ selectedCities }) {
                 {p.city}
               </span>
             ))}
-            {stateAvg && (
+            {stateBenchmark && (
               <span
                 style={{
                   display: 'flex',
@@ -476,7 +518,7 @@ export default function CityProfile({ selectedCities }) {
                     alignSelf: 'center',
                   }}
                 />
-                MA State Avg
+                MA Statewide
               </span>
             )}
           </div>
@@ -498,9 +540,9 @@ export default function CityProfile({ selectedCities }) {
                       {p.city}
                     </th>
                   ))}
-                  {stateAvg && (
+                  {stateBenchmark && (
                     <th style={{ textAlign: 'right', padding: '0.75rem 0.5rem', color: '#888' }}>
-                      MA Avg
+                      MA Statewide
                     </th>
                   )}
                 </tr>
@@ -522,9 +564,9 @@ export default function CityProfile({ selectedCities }) {
                         {formatVal(p[s.key], s.format)}
                       </td>
                     ))}
-                    {stateAvg && (
+                    {stateBenchmark && (
                       <td style={{ textAlign: 'right', padding: '0.6rem 0.5rem', color: '#888' }}>
-                        {formatVal(stateAvg[s.key], s.format)}
+                        {formatVal(stateBenchmark[s.key], s.format)}
                       </td>
                     )}
                   </tr>
@@ -638,10 +680,10 @@ export default function CityProfile({ selectedCities }) {
                       }}
                       formatter={(v) => [formatVal(v, s.format), s.label]}
                     />
-                    {stateAvg?.[s.key] != null && (
+                    {stateBenchmark?.[s.key] != null && (
                       <CartesianGrid
                         horizontalPoints={[]}
-                        verticalPoints={[stateAvg[s.key]]}
+                        verticalPoints={[stateBenchmark[s.key]]}
                         stroke="#888"
                         strokeDasharray="6 3"
                       />

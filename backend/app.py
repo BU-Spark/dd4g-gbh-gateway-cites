@@ -72,6 +72,16 @@ def time_series():
     return jsonify(data_store.get_time_series(city=city, metric=metric))
 
 
+@app.get("/api/state-profile")
+def state_profile():
+    return jsonify(data_store.get_state_profile())
+
+
+@app.get("/api/state-country-of-origin")
+def state_country_of_origin():
+    return jsonify(data_store.get_state_country_of_origin())
+
+
 @app.post("/api/chat")
 def chat():
     payload = request.get_json(silent=True) or {}

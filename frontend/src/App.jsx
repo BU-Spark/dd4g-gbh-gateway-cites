@@ -214,7 +214,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>Gateway Cities: Foreign-Born Population</h1>
+        <h1>Massachusetts Immigration Data</h1>
         <p>ACS 5-Year Estimates · Massachusetts · 2024</p>
       </header>
 
@@ -442,6 +442,18 @@ export default function App() {
       </div>
 
       <ChatBot />
+
+      <footer className="app-footer">
+        <div className="app-footer-inner">
+          The data presented in this dashboard was sourced from the U.S. Census Bureau's American Community Survey (ACS)
+          5-Year Estimates (2012–2024), accessible at data.census.gov. ACS 5-year estimates represent period averages
+          rather than point-in-time measurements and are subject to margins of error inherent in survey-based data
+          collection. This dashboard was developed by a team of graduate students at Boston University for educational
+          and research purposes. The findings, interpretations, and visualizations are those of the authors and do not
+          represent official positions of the U.S. Census Bureau or Boston University. All data is publicly available and
+          intended for public use.
+        </div>
+      </footer>
     </div>
   );
 }
