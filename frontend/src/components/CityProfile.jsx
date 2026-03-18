@@ -176,7 +176,9 @@ export default function CityProfile({ selectedCities }) {
           estimate: est,
           share: totalOrigins > 0 ? (est / totalOrigins) * 100 : 0,
         }
-      }).filter((r) => r.estimate > 0)
+      })
+        .filter((r) => r.estimate > 0)
+        .sort((a, b) => b.estimate - a.estimate)
 
       const topOrigins = originRows
         .slice()
