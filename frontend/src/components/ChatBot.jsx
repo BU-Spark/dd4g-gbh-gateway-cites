@@ -33,11 +33,137 @@ function normalizeTimeSeries(rows = []) {
 
 /* ---- component ---- */
 export default function ChatBot() {
+  const DEFAULT_WIDTH = 340;
+  const DEFAULT_HEIGHT = 404;
+  const MIN_WIDTH = 280;
+  const MIN_HEIGHT = 260;
+  const HEADER_HEIGHT = 44;
+
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
+  const [position, setPosition] = useState(null);
+  const [size, setSize] = useState({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
+  const [dragging, setDragging] = useState(false);
+  const [resizeState, setResizeState] = useState(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    if (position === null) {
+      const defaultX = window.innerWidth - DEFAULT_WIDTH - 24;
+      const defaultY = 56;
+      setPosition({
+        x: Math.max(0, defaultX),
+        y: defaultY,
+      });
+    }
+  }, []);
+
+  const handleMouseDown = (e) => {
+    if (resizeState) return;
+    setDragging(true);
+    const wrapper = wrapperRef.current;
+    if (wrapper) {
+      const rect = wrapper.getBoundingClientRect();
+      setDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+    }
+  };
+
+  const handleResizeStart = (edge) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!position) return;
+
+    setResizeState({
+      edge,
+      startX: e.clientX,
+      startY: e.clientY,
+      startLeft: position.x,
+      startTop: position.y,
+      startWidth: size.width,
+      startHeight: size.height,
+    });
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (resizeState) {
+        const dx = e.clientX - resizeState.startX;
+        const dy = e.clientY - resizeState.startY;
+        const startRight = resizeState.startLeft + resizeState.startWidth;
+        const startBottom = resizeState.startTop + resizeState.startHeight;
+
+        let nextLeft = resizeState.startLeft;
+        let nextTop = resizeState.startTop;
+        let nextWidth = resizeState.startWidth;
+        let nextHeight = resizeState.startHeight;
+
+        if (resizeState.edge.includes("right")) {
+          const nextRight = Math.min(
+            window.innerWidth - 8,
+            Math.max(resizeState.startLeft + MIN_WIDTH, startRight + dx),
+          );
+          nextWidth = nextRight - resizeState.startLeft;
+        }
+
+        if (resizeState.edge.includes("left")) {
+          const nextLeftCandidate = Math.max(
+            0,
+            Math.min(startRight - MIN_WIDTH, resizeState.startLeft + dx),
+          );
+          nextLeft = nextLeftCandidate;
+          nextWidth = startRight - nextLeftCandidate;
+        }
+
+        if (resizeState.edge.includes("bottom")) {
+          const nextBottom = Math.min(
+            window.innerHeight - 8,
+            Math.max(resizeState.startTop + MIN_HEIGHT, startBottom + dy),
+          );
+          nextHeight = nextBottom - resizeState.startTop;
+        }
+
+        if (resizeState.edge.includes("top")) {
+          const nextTopCandidate = Math.max(
+            0,
+            Math.min(startBottom - MIN_HEIGHT, resizeState.startTop + dy),
+          );
+          nextTop = nextTopCandidate;
+          nextHeight = startBottom - nextTopCandidate;
+        }
+
+        setPosition({ x: nextLeft, y: nextTop });
+        setSize({ width: nextWidth, height: nextHeight });
+        return;
+      }
+
+      if (!dragging) return;
+      setPosition({
+        x: e.clientX - dragOffset.x,
+        y: e.clientY - dragOffset.y,
+      });
+    };
+
+    const handleMouseUp = () => {
+      setDragging(false);
+      setResizeState(null);
+    };
+
+    if (dragging || resizeState) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+      return () => {
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", handleMouseUp);
+      };
+    }
+  }, [dragging, dragOffset, resizeState]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -73,13 +199,25 @@ export default function ChatBot() {
   };
 
   return (
-    <div style={styles.wrapper}>
+    <div
+      ref={wrapperRef}
+      style={{
+        ...styles.wrapper,
+        bottom: "auto",
+        right: "auto",
+        top: position ? `${position.y}px` : "0",
+        left: position ? `${position.x}px` : "0",
+        width: `${size.width}px`,
+      }}
+    >
       {/* Collapsed bar — always visible */}
       <button
         style={{
           ...styles.header,
           borderRadius: open ? "10px 10px 0 0" : "10px",
+          cursor: dragging ? "grabbing" : "grab",
         }}
+        onMouseDown={handleMouseDown}
         onClick={() => setOpen((o) => !o)}
       >
         <span style={styles.headerIcon}>💬</span>
@@ -90,7 +228,12 @@ export default function ChatBot() {
 
       {/* Expanded panel */}
       {open && (
-        <div style={styles.body}>
+        <div
+          style={{
+            ...styles.body,
+            height: `${Math.max(180, size.height - HEADER_HEIGHT)}px`,
+          }}
+        >
           <div style={styles.messages}>
             {messages.length === 0 && (
               <div style={styles.welcome}>
@@ -188,6 +331,21 @@ export default function ChatBot() {
               ▶
             </button>
           </form>
+
+          <div style={styles.resizeHandleTop} onMouseDown={handleResizeStart("top")} />
+          <div style={styles.resizeHandleRight} onMouseDown={handleResizeStart("right")} />
+          <div style={styles.resizeHandleBottom} onMouseDown={handleResizeStart("bottom")} />
+          <div style={styles.resizeHandleLeft} onMouseDown={handleResizeStart("left")} />
+          <div style={styles.resizeHandleTopLeft} onMouseDown={handleResizeStart("top-left")} />
+          <div style={styles.resizeHandleTopRight} onMouseDown={handleResizeStart("top-right")} />
+          <div
+            style={styles.resizeHandleBottomRight}
+            onMouseDown={handleResizeStart("bottom-right")}
+          />
+          <div
+            style={styles.resizeHandleBottomLeft}
+            onMouseDown={handleResizeStart("bottom-left")}
+          />
         </div>
       )}
     </div>
@@ -231,6 +389,7 @@ const styles = {
     borderTop: "none",
     borderRadius: "0 0 10px 10px",
     height: 360,
+    position: "relative",
   },
   messages: {
     flex: 1,
@@ -303,5 +462,69 @@ const styles = {
     color: "#fff",
     fontSize: "0.85rem",
     cursor: "pointer",
+  },
+  resizeHandleTop: {
+    position: "absolute",
+    top: -3,
+    left: 10,
+    right: 10,
+    height: 6,
+    cursor: "ns-resize",
+  },
+  resizeHandleRight: {
+    position: "absolute",
+    top: 10,
+    right: -3,
+    bottom: 10,
+    width: 6,
+    cursor: "ew-resize",
+  },
+  resizeHandleBottom: {
+    position: "absolute",
+    bottom: -3,
+    left: 10,
+    right: 10,
+    height: 6,
+    cursor: "ns-resize",
+  },
+  resizeHandleLeft: {
+    position: "absolute",
+    top: 10,
+    left: -3,
+    bottom: 10,
+    width: 6,
+    cursor: "ew-resize",
+  },
+  resizeHandleTopLeft: {
+    position: "absolute",
+    top: -3,
+    left: -3,
+    width: 10,
+    height: 10,
+    cursor: "nwse-resize",
+  },
+  resizeHandleTopRight: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    width: 10,
+    height: 10,
+    cursor: "nesw-resize",
+  },
+  resizeHandleBottomRight: {
+    position: "absolute",
+    right: -3,
+    bottom: -3,
+    width: 10,
+    height: 10,
+    cursor: "nwse-resize",
+  },
+  resizeHandleBottomLeft: {
+    position: "absolute",
+    left: -3,
+    bottom: -3,
+    width: 10,
+    height: 10,
+    cursor: "nesw-resize",
   },
 };
