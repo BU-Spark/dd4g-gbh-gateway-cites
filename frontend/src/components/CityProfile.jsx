@@ -422,7 +422,13 @@ export default function CityProfile({ selectedCities }) {
                     width={150}
                     interval={0}
                   />
-                  <Tooltip />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#1e1e2e',
+                      border: '1px solid #444',
+                      color: '#fff',
+                    }}
+                  />
                   <Bar dataKey="estimate" fill="#4e9af1" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>

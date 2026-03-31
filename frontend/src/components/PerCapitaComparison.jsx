@@ -239,6 +239,7 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
                   borderRadius: 6,
                 }}
                 labelStyle={{ color: '#fff' }}
+                itemStyle={{ color: COLORS.gateway }}
                 formatter={(value) => [formatValue(value), selectedMetric.label]}
               />
               <Bar
@@ -246,7 +247,7 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
                 radius={[0, 4, 4, 0]}
                 label={{
                   position: 'right',
-                  fill: '#aaa',
+                  fill: COLORS.gateway,
                   fontSize: 11,
                   formatter: (value) => formatValue(value),
                 }}
