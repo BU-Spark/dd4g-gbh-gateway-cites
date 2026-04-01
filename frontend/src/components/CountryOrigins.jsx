@@ -1,15 +1,26 @@
 import { useEffect, useState, useMemo } from 'react'
-import { fetchCountryOfOrigin, fetchStateCountryOfOrigin } from '../api/cities'
+import { fetchCountryOfOrigin, fetchStateCountryOfOrigin, fetchTimeSeries } from '../api/cities'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid, Cell
+  ResponsiveContainer, CartesianGrid, Cell,
+  LineChart, Line,
 } from 'recharts'
 
 const ACCENT = '#4e9af1'
 const ACCENT2 = '#f1914e'
 const OTHER_COLOR = '#bfc4cf'
-const STATEWIDE_LABEL = 'Massachusetts (Statewide)'
+const STATEWIDE_LABEL = 'Massachusetts Statewide Total'
 const GATEWAY_LABEL = 'Gateway Cities (Combined)'
+
+const CONTINENT_ORDER = [
+  'North America',
+  'South America',
+  'Africa',
+  'Asia',
+  'Europe',
+  'Oceania',
+  'Other',
+]
 
 const NORTH_AMERICA_ORIGINS = new Set([
   'Bahamas',
@@ -92,11 +103,13 @@ const REGION_OPTIONS = [
   { value: 'Oceania',   label: 'Oceania' },
 ]
 
-export default function CountryOrigins({ allCities = [] }) {
+export default function CountryOrigins({ selectedCities = [], allCities = [] }) {
   const [mode, setMode] = useState('by_city')
   const [allData, setAllData] = useState([])
   const [loading, setLoading] = useState(true)
   const [gatewayOnly, setGatewayOnly] = useState(false)
+  const [continentTrendData, setContinentTrendData] = useState([])
+  const [continentTrendLoading, setContinentTrendLoading] = useState(false)
 
   const cityTypeByName = useMemo(() => {
     const map = new Map()
@@ -130,6 +143,17 @@ export default function CountryOrigins({ allCities = [] }) {
   const effectiveSelectedCity = cityNames.includes(selectedCity)
     ? selectedCity
     : STATEWIDE_LABEL
+
+  useEffect(() => {
+    if (selectedCities.length === 1) {
+      setSelectedCity(selectedCities[0])
+      return
+    }
+
+    if (selectedCities.length === 0) {
+      setSelectedCity(STATEWIDE_LABEL)
+    }
+  }, [selectedCities])
 
 const [region, setRegion] = useState('all')
 
@@ -264,6 +288,61 @@ const filteredData = useMemo(() => {
       .slice(0, 8)
   }, [filteredData, countrySearch, gatewayCitySet, gatewayOnly])
 
+  const byContinentData = useMemo(() => {
+    const cityRows = allData.filter(
+      (r) => r.city === effectiveSelectedCity && Number(r.estimate) > 0
+    )
+
+    const totals = new Map()
+    cityRows.forEach((row) => {
+      const continent = normalizeContinent(row)
+      const estimate = Number(row.estimate) || 0
+      totals.set(continent, (totals.get(continent) || 0) + estimate)
+    })
+
+    return CONTINENT_ORDER
+      .map((continent) => ({
+        continent,
+        estimate: totals.get(continent) || 0,
+      }))
+      .filter((r) => r.estimate > 0)
+      .sort((a, b) => b.estimate - a.estimate)
+  }, [allData, effectiveSelectedCity])
+
+  useEffect(() => {
+    if (mode !== 'by_continent') return
+
+    if (
+      effectiveSelectedCity === STATEWIDE_LABEL ||
+      effectiveSelectedCity === GATEWAY_LABEL
+    ) {
+      setContinentTrendData([])
+      setContinentTrendLoading(false)
+      return
+    }
+
+    setContinentTrendLoading(true)
+    fetchTimeSeries({ city: effectiveSelectedCity, metric: 'fb_pct' })
+      .then((rows) => {
+        const trend = (rows || [])
+          .map((row) => ({
+            year: Number(row.year),
+            value: row.value == null ? null : Number(row.value),
+          }))
+          .filter(
+            (row) => Number.isFinite(row.year) && row.value != null && !Number.isNaN(row.value)
+          )
+          .sort((a, b) => a.year - b.year)
+
+        setContinentTrendData(trend)
+        setContinentTrendLoading(false)
+      })
+      .catch(() => {
+        setContinentTrendData([])
+        setContinentTrendLoading(false)
+      })
+  }, [effectiveSelectedCity, mode])
+
 
   if (loading) {
     return <div className="placeholder"><p>Loading country data...</p></div>
@@ -273,8 +352,8 @@ const filteredData = useMemo(() => {
     <div style={{ padding: '1rem' }}>
       <h2 style={{ marginBottom: '1rem' }}>Country of Origin</h2>
 
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-        {[['by_city', 'By City'], ['by_country', 'By Country']].map(([val, label]) => (
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        {[['by_city', 'By City'], ['by_country', 'By Country'], ['by_continent', 'By Continent']].map(([val, label]) => (
           <button
             key={val}
             onClick={() => setMode(val)}
@@ -508,6 +587,100 @@ const filteredData = useMemo(() => {
           )}
         </>
       )}
+
+      {mode === 'by_continent' && (
+        <>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+            <div>
+              <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
+                City
+              </label>
+              <select
+                value={effectiveSelectedCity}
+                onChange={e => setSelectedCity(e.target.value)}
+                style={{ background: '#1e1e2e', color: '#fff', border: '1px solid #444', borderRadius: '6px', padding: '0.35rem 0.6rem' }}
+              >
+                {cityNames.map(city => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '1rem' }}>
+            Continent comparison · {effectiveSelectedCity} · 2024 ACS
+          </p>
+
+          <ResponsiveContainer width="100%" height={Math.max(300, byContinentData.length * 42 + 40)}>
+            <BarChart data={byContinentData} layout="vertical" margin={{ left: 140, right: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+              <XAxis type="number" tick={{ fill: '#aaa', fontSize: 11 }} />
+              <YAxis dataKey="continent" type="category" tick={{ fill: '#ccc', fontSize: 11 }} width={130} />
+              <Tooltip
+                formatter={(val) => [`${Number(val).toLocaleString()}`, 'Estimate']}
+                contentStyle={{ background: '#1e1e2e', border: '1px solid #444', color: '#fff' }}
+                itemStyle={{ color: ACCENT }}
+                labelStyle={{ color: '#fff' }}
+              />
+              <Bar dataKey="estimate" radius={[0, 4, 4, 0]}>
+                {byContinentData.map((_, i) => (
+                  <Cell key={i} fill={i === 0 ? ACCENT2 : ACCENT} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+
+          <div style={{ marginTop: '1.5rem' }}>
+            <h3 style={{ marginBottom: '0.6rem', fontSize: '1rem' }}>
+              Historical Trend for {effectiveSelectedCity}
+            </h3>
+
+            {(effectiveSelectedCity === STATEWIDE_LABEL || effectiveSelectedCity === GATEWAY_LABEL) ? (
+              <p style={{ color: '#888', fontSize: '0.85rem' }}>
+                Historical trend is available for individual cities. Select a city from the selector or sidebar.
+              </p>
+            ) : continentTrendLoading ? (
+              <p style={{ color: '#888', fontSize: '0.85rem' }}>Loading trend...</p>
+            ) : continentTrendData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={continentTrendData} margin={{ top: 8, right: 24, left: 16, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis dataKey="year" tick={{ fill: '#aaa', fontSize: 11 }} />
+                  <YAxis tick={{ fill: '#aaa', fontSize: 11 }} />
+                  <Tooltip
+                    formatter={(val) => [`${Number(val).toFixed(2)}%`, 'Foreign-Born Share']}
+                    contentStyle={{ background: '#1e1e2e', border: '1px solid #444', color: '#fff' }}
+                    itemStyle={{ color: ACCENT }}
+                    labelStyle={{ color: '#fff' }}
+                  />
+                  <Line type="monotone" dataKey="value" stroke={ACCENT} strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p style={{ color: '#888', fontSize: '0.85rem' }}>
+                No historical trend data available for the selected city.
+              </p>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
+}
+
+const normalizeContinent = (row) => {
+  const rawRegion = String(row.region || '').trim()
+  const country = String(row.country || '').trim()
+
+  if (rawRegion === 'America') {
+    if (NORTH_AMERICA_ORIGINS.has(country)) return 'North America'
+    if (SOUTH_AMERICA_ORIGINS.has(country)) return 'South America'
+    return 'Other'
+  }
+
+  if (['Africa', 'Asia', 'Europe', 'Oceania'].includes(rawRegion)) {
+    return rawRegion
+  }
+
+  return 'Other'
 }

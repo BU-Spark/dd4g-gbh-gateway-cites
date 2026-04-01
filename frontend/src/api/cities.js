@@ -30,14 +30,6 @@ export async function fetchCountryOfOrigin(city) {
   return fetchJson(`/api/country-of-origin?city=${encodeURIComponent(city)}`);
 }
 
-export async function fetchStateProfile() {
-  return fetchJson("/api/state-profile");
-}
-
-export async function fetchStateCountryOfOrigin() {
-  return fetchJson("/api/state-country-of-origin");
-}
-
 export async function fetchEducation(city) {
   const url = city
     ? `/api/education?city=${encodeURIComponent(city)}`
