@@ -26,8 +26,12 @@ export async function fetchForeignBorn(params = {}) {
   return fetchJson(`/api/foreign-born${query ? `?${query}` : ""}`);
 }
 
-export async function fetchCountryOfOrigin(city) {
-  return fetchJson(`/api/country-of-origin?city=${encodeURIComponent(city)}`);
+export async function fetchCountryOfOrigin(city, options = {}) {
+  const params = new URLSearchParams();
+  if (city) params.set("city", city);
+  if (options.allYears) params.set("all_years", "1");
+  const query = params.toString();
+  return fetchJson(`/api/country-of-origin${query ? `?${query}` : ""}`);
 }
 
 export async function fetchEducation(city) {
@@ -66,6 +70,18 @@ export async function fetchTimeSeries({ city, metric } = {}) {
 
 export async function fetchStateAverages() {
   return fetchJson("/api/state-averages");
+}
+
+export async function fetchStateProfile() {
+  return fetchJson("/api/state-profile");
+}
+
+export async function fetchStateCountryOfOrigin() {
+  return fetchJson("/api/state-country-of-origin");
+}
+
+export async function fetchContinentTrend(scope = "state") {
+  return fetchJson(`/api/continent-trend?scope=${encodeURIComponent(scope)}`);
 }
 
 export async function fetchChat(message) {

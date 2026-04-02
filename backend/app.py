@@ -34,7 +34,14 @@ def foreign_born():
 @app.get("/api/country-of-origin")
 def country_of_origin():
     city = request.args.get("city")
-    return jsonify(data_store.get_country_of_origin(city=city))
+    all_years = request.args.get("all_years") == "1"
+    return jsonify(data_store.get_country_of_origin(city=city, latest_only=not all_years))
+
+
+@app.get("/api/continent-trend")
+def continent_trend():
+    scope = request.args.get("scope", "state")
+    return jsonify(data_store.get_country_of_origin_trend(scope=scope))
 
 @app.get("/api/education")
 def education():

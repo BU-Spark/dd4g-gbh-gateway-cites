@@ -61,18 +61,52 @@ REGION_LABELS = {
 }
 
 
-def get_country_of_origin(city: str = None):
+GATEWAY_CITY_NAMES = {
+    "Attleboro", "Barnstable", "Brockton", "Chelsea", "Chicopee",
+    "Everett", "Fall River", "Fitchburg", "Framingham", "Haverhill",
+    "Holyoke", "Lawrence", "Leominster", "Lowell", "Lynn", "Malden",
+    "Methuen", "New Bedford", "Peabody", "Pittsfield", "Quincy",
+    "Revere", "Salem", "Springfield", "Taunton", "Worcester",
+}
+
+
+def get_country_of_origin_trend(scope: str = "state"):
+    """Return country-of-origin rows for all years, aggregated for state or gateway scope."""
+    df = _load("country_of_origin.parquet")
+    if scope == "gateway":
+        df = df[df["city"].isin(GATEWAY_CITY_NAMES)]
+    df = df[
+        ~df["country"].astype(str).str.endswith(":") &
+        ~df["country"].astype(str).str.startswith("Other ") &
+        ~df["country"].astype(str).str.contains(", n.e.c.", regex=False)
+    ].copy()
+    df["estimate"] = (
+        pd.to_numeric(df["estimate"], errors="coerce")
+        .replace(list(BAD_VALUES), np.nan)
+        .fillna(0)
+    )
+    group_cols = [c for c in ["year", "country", "region"] if c in df.columns]
+    grouped = (
+        df.groupby(group_cols, dropna=False)["estimate"]
+        .sum()
+        .reset_index()
+        .sort_values(group_cols)
+    )
+    return _to_records(grouped)
+
+
+def get_country_of_origin(city: str = None, latest_only: bool = True):
     df = _load("country_of_origin.parquet")
     if city:
         df = df[df["city"] == city]
-    if "year" in df.columns:
+    if latest_only and "year" in df.columns:
         df = df[df["year"] == df["year"].max()]
     df = df[
         ~df["country"].str.endswith(":") &
         ~df["country"].str.startswith("Other ") &
         ~df["country"].str.contains(", n.e.c.", regex=False)
     ]
-    cols = [c for c in ["city", "city_type", "country", "estimate", "region"] if c in df.columns]
+    cols = [c for c in ["city", "city_type", "year", "country", "estimate", "region"] if c in df.columns]
     return _to_records(df[cols])
 
 

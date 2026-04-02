@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { fetchCountryOfOrigin, fetchStateCountryOfOrigin, fetchTimeSeries } from '../api/cities'
+import { fetchCountryOfOrigin, fetchStateCountryOfOrigin, fetchContinentTrend } from '../api/cities'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, Cell,
@@ -21,6 +21,16 @@ const CONTINENT_ORDER = [
   'Oceania',
   'Other',
 ]
+
+const CONTINENT_COLORS = {
+  'Asia':          '#4e9af1',
+  'North America': '#f1914e',
+  'Europe':        '#a78bfa',
+  'South America': '#34d399',
+  'Africa':        '#fbbf24',
+  'Oceania':       '#f472b6',
+  'Other':         '#bfc4cf',
+}
 
 const NORTH_AMERICA_ORIGINS = new Set([
   'Bahamas',
@@ -312,26 +322,33 @@ const filteredData = useMemo(() => {
   useEffect(() => {
     if (mode !== 'by_continent') return
 
-    if (
-      effectiveSelectedCity === STATEWIDE_LABEL ||
-      effectiveSelectedCity === GATEWAY_LABEL
-    ) {
-      setContinentTrendData([])
-      setContinentTrendLoading(false)
-      return
+    setContinentTrendLoading(true)
+
+    let fetchPromise
+    if (effectiveSelectedCity === STATEWIDE_LABEL) {
+      fetchPromise = fetchContinentTrend('state')
+    } else if (effectiveSelectedCity === GATEWAY_LABEL) {
+      fetchPromise = fetchContinentTrend('gateway')
+    } else {
+      fetchPromise = fetchCountryOfOrigin(effectiveSelectedCity, { allYears: true })
     }
 
-    setContinentTrendLoading(true)
-    fetchTimeSeries({ city: effectiveSelectedCity, metric: 'fb_pct' })
+    fetchPromise
       .then((rows) => {
-        const trend = (rows || [])
-          .map((row) => ({
-            year: Number(row.year),
-            value: row.value == null ? null : Number(row.value),
-          }))
-          .filter(
-            (row) => Number.isFinite(row.year) && row.value != null && !Number.isNaN(row.value)
-          )
+        // Aggregate: { year -> { continent -> count } }
+        const byYear = new Map()
+        ;(rows || []).forEach((row) => {
+          const year = Number(row.year)
+          if (!Number.isFinite(year)) return
+          const continent = normalizeContinent(row)
+          const estimate = Number(row.estimate) || 0
+          if (!byYear.has(year)) byYear.set(year, {})
+          const entry = byYear.get(year)
+          entry[continent] = (entry[continent] || 0) + estimate
+        })
+
+        const trend = Array.from(byYear.entries())
+          .map(([year, continents]) => ({ year, ...continents }))
           .sort((a, b) => a.year - b.year)
 
         setContinentTrendData(trend)
@@ -635,25 +652,43 @@ const filteredData = useMemo(() => {
               Historical Trend for {effectiveSelectedCity}
             </h3>
 
-            {(effectiveSelectedCity === STATEWIDE_LABEL || effectiveSelectedCity === GATEWAY_LABEL) ? (
-              <p style={{ color: '#888', fontSize: '0.85rem' }}>
-                Historical trend is available for individual cities. Select a city from the selector or sidebar.
-              </p>
-            ) : continentTrendLoading ? (
+            {continentTrendLoading ? (
               <p style={{ color: '#888', fontSize: '0.85rem' }}>Loading trend...</p>
             ) : continentTrendData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={continentTrendData} margin={{ top: 8, right: 24, left: 16, bottom: 8 }}>
+              <ResponsiveContainer width="100%" height={320}>
+                <LineChart data={continentTrendData} margin={{ top: 8, right: 120, left: 16, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                   <XAxis dataKey="year" tick={{ fill: '#aaa', fontSize: 11 }} />
-                  <YAxis tick={{ fill: '#aaa', fontSize: 11 }} />
+                  <YAxis
+                    tick={{ fill: '#aaa', fontSize: 11 }}
+                    tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
+                  />
                   <Tooltip
-                    formatter={(val) => [`${Number(val).toFixed(2)}%`, 'Foreign-Born Share']}
+                    formatter={(val, name) => [Number(val).toLocaleString(), name]}
                     contentStyle={{ background: '#1e1e2e', border: '1px solid #444', color: '#fff' }}
-                    itemStyle={{ color: ACCENT }}
                     labelStyle={{ color: '#fff' }}
                   />
-                  <Line type="monotone" dataKey="value" stroke={ACCENT} strokeWidth={2} dot={false} />
+                  {CONTINENT_ORDER.map((continent) => (
+                    <Line
+                      key={continent}
+                      type="monotone"
+                      dataKey={continent}
+                      stroke={CONTINENT_COLORS[continent]}
+                      strokeWidth={2}
+                      dot={false}
+                      connectNulls
+                      label={(props) => {
+                        const { x, y, index, value } = props
+                        if (index !== continentTrendData.length - 1) return null
+                        if (value == null || value === 0) return null
+                        return (
+                          <text x={x + 6} y={y} fill={CONTINENT_COLORS[continent]} fontSize={11} dominantBaseline="middle">
+                            {continent}
+                          </text>
+                        )
+                      }}
+                    />
+                  ))}
                 </LineChart>
               </ResponsiveContainer>
             ) : (
