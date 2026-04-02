@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { fetchTimeSeries } from '../api/cities'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, Legend, ReferenceLine,
+  CartesianGrid, ReferenceLine,
 } from 'recharts'
 
 const METRICS = [
@@ -19,6 +19,58 @@ const CITY_COLORS = [
   '#4e9af1', '#f1914e', '#a14ef1', '#4ef1a1', '#f14e7a',
   '#f1e44e', '#4ef1e4', '#f17a4e', '#7af14e', '#4e6af1',
 ]
+
+const getCityColor = (city) => {
+  const name = String(city || '')
+  let hash = 0
+
+  for (let index = 0; index < name.length; index += 1) {
+    hash = (hash * 31 + name.charCodeAt(index)) >>> 0
+  }
+
+  return CITY_COLORS[hash % CITY_COLORS.length]
+}
+
+function TrendsColorKey({ cities = [], cityColorMap = {} }) {
+  if (!cities.length) return null
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '0.5rem 1rem',
+        justifyContent: 'center',
+        fontSize: '0.78rem',
+        paddingTop: '0.75rem',
+      }}
+    >
+      {cities.map((city) => (
+        <div
+          key={city}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            color: cityColorMap[city],
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: '0.9rem',
+              height: '0.18rem',
+              borderRadius: '999px',
+              background: cityColorMap[city],
+              display: 'inline-block',
+            }}
+          />
+          <span>{city}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 const GATEWAY_CITIES = [
   'Attleboro', 'Barnstable', 'Brockton', 'Chelsea', 'Chicopee',
@@ -101,6 +153,11 @@ export default function TrendsView({ selectedCities }) {
     if (activeCities) return activeCities.filter((c) => set.has(c))
     return [...set].sort()
   }, [data, activeCities])
+
+  const cityColorMap = useMemo(
+    () => Object.fromEntries(cities.map((city) => [city, getCityColor(city)])),
+    [cities],
+  )
 
   const exportRows = useMemo(() => {
     let rows = data
@@ -225,7 +282,7 @@ export default function TrendsView({ selectedCities }) {
             ⚠️ 2020 data reflects COVID-19 nonresponse bias — interpret with caution
           </p>
           <ResponsiveContainer width="100%" height={480}>
-            <LineChart data={chartData} margin={{ top: 8, right: 24, left: 16, bottom: 8 }}>
+            <LineChart data={chartData} margin={{ top: 8, right: 120, left: 16, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
               <XAxis
                 dataKey="year"
@@ -246,6 +303,7 @@ export default function TrendsView({ selectedCities }) {
                   color: '#fff',
                   fontSize: '0.8rem',
                 }}
+                itemSorter={(item) => -(Number(item?.value) || 0)}
                 formatter={(v, name) => [formatValue(v), name]}
                 labelFormatter={(l) => `Year: ${l}`}
               />
@@ -255,22 +313,39 @@ export default function TrendsView({ selectedCities }) {
                 strokeDasharray="4 4"
                 label={{ value: 'COVID', fill: '#f1914e', fontSize: 10 }}
               />
-              {cityFilter !== 'all' && (
-                <Legend wrapperStyle={{ fontSize: '0.78rem', color: '#aaa' }} />
-              )}
-              {cities.map((city, i) => (
+              {cities.map((city) => (
                 <Line
                   key={city}
                   type="monotone"
                   dataKey={city}
-                  stroke={CITY_COLORS[i % CITY_COLORS.length]}
+                  stroke={cityColorMap[city]}
                   strokeWidth={selectedCities.includes(city) ? 2.5 : 1.5}
                   dot={false}
                   connectNulls
+                  label={(props) => {
+                    const { x, y, index, value } = props
+                    if (index !== chartData.length - 1) return null
+                    if (value == null) return null
+
+                    return (
+                      <text
+                        x={x + 6}
+                        y={y}
+                        fill={cityColorMap[city]}
+                        fontSize={11}
+                        dominantBaseline="middle"
+                      >
+                        {city}
+                      </text>
+                    )
+                  }}
                 />
               ))}
             </LineChart>
           </ResponsiveContainer>
+          {cityFilter !== 'all' && (
+            <TrendsColorKey cities={cities} cityColorMap={cityColorMap} />
+          )}
         </>
       )}
 

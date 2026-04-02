@@ -664,6 +664,7 @@ const filteredData = useMemo(() => {
                     tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
                   />
                   <Tooltip
+                    itemSorter={(item) => -(Number(item?.value) || 0)}
                     formatter={(val, name) => [Number(val).toLocaleString(), name]}
                     contentStyle={{ background: '#1e1e2e', border: '1px solid #444', color: '#fff' }}
                     labelStyle={{ color: '#fff' }}
