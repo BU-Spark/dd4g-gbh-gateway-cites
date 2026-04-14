@@ -13,6 +13,7 @@ import {
   fetchEmploymentIncome,
   fetchEducation,
   fetchHomeownership,
+  fetchStateProfile,
 } from '../api/cities'
 
 const COLORS = {
@@ -50,6 +51,7 @@ const downloadCSV = (filename, rows) => {
 
 export default function PerCapitaComparison({ selectedCities, allCities }) {
   const [data, setData] = useState([])
+  const [stateProfile, setStateProfile] = useState(null)
   const [metric, setMetric] = useState('fb_pct')
   const [loading, setLoading] = useState(false)
   const [topN, setTopN] = useState(15)
@@ -68,16 +70,17 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
 
     const citiesToFetch =
       selectedCities.length > 0
-        ? selectedCities
-        : allCities.map((c) => c.city)
+        ? selectedCities.filter((c) => c !== 'Statewide')
+        : allCities.filter((c) => c.city !== 'Statewide').map((c) => c.city)
 
     Promise.all([
       fetchForeignBorn(),
       fetchEmploymentIncome(),
       fetchEducation(),
       fetchHomeownership(),
+      fetchStateProfile(),
     ])
-      .then(([fb, emp, edu, own]) => {
+      .then(([fb, emp, edu, own, state]) => {
         const merged = citiesToFetch.map((city) => {
           const cityMeta = allCities.find((c) => c.city === city) || {}
           const fbRow = fb.find((r) => r.city === city) || {}
@@ -97,6 +100,7 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
         })
 
         setData(merged)
+        setStateProfile(state)
         setLoading(false)
       })
       .catch((err) => {
@@ -113,8 +117,32 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
       .filter((d) => (gatewayOnly ? d.city_type === 'gateway' : true))
       .sort((a, b) => (b[metric] ?? 0) - (a[metric] ?? 0))
 
-    return filtered.slice(0, topN)
-  }, [data, metric, gatewayOnly, topN])
+    const pageRows = filtered.slice(0, topN)
+
+    if (!stateProfile || (!selectedCities.includes('Statewide') && selectedCities.length > 0)) {
+      return pageRows
+    }
+
+    const stateRow = {
+      city: 'Statewide',
+      city_type: 'state',
+      fb_pct: stateProfile.fb_pct,
+      unemployment_rate: stateProfile.unemployment_rate,
+      bachelors_pct: stateProfile.bachelors_pct,
+      homeownership_pct: stateProfile.homeownership_pct,
+      median_household_income: stateProfile.median_household_income,
+    }
+
+    const existingStateIndex = pageRows.findIndex(
+      (row) => row.city === stateRow.city && row.city_type === stateRow.city_type,
+    )
+
+    if (existingStateIndex !== -1) {
+      return [stateRow, ...pageRows.filter((_, idx) => idx !== existingStateIndex)]
+    }
+
+    return [stateRow, ...pageRows]
+  }, [data, metric, gatewayOnly, topN, stateProfile])
 
   useEffect(() => {
     const handleDownload = (event) => {

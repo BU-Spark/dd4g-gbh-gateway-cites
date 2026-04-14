@@ -138,7 +138,9 @@ const downloadCSV = (filename, rows) => {
 }
 
 export default function CityProfile({ selectedCities }) {
-  const citiesToShow = selectedCities.length > 0 ? selectedCities : [DEFAULT_CITY]
+  const citiesToShow = selectedCities.length > 0
+    ? selectedCities.map(city => city === 'Statewide' ? DEFAULT_CITY : city)
+    : [DEFAULT_CITY]
   const [profiles, setProfiles] = useState([])
   const [stateBenchmark, setStateBenchmark] = useState(null)
   const [origins, setOrigins] = useState({})
@@ -270,14 +272,14 @@ export default function CityProfile({ selectedCities }) {
       })
       .catch((err) => {
         console.error('Failed to load city profile:', err)
-        setError(err?.message || 'Failed to load City Profile data')
+        setError(err?.message || 'Failed to load Overview data')
         setLoading(false)
       })
   }, [citiesToShow.join(',')])
 
   useEffect(() => {
     const handleDownload = (event) => {
-      if (event.detail?.tab !== 'City Profile') return
+      if (event.detail?.tab !== 'Overview') return
       if (!profiles.length) return
 
       const profileRows = profiles.map((p) => ({

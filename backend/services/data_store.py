@@ -256,7 +256,7 @@ def get_state_profile():
     edu_state = _find_state_row(edu)
     own_state = _find_state_row(own)
 
-    out: dict = {"city": "Massachusetts", "city_type": "state"}
+    out: dict = {"city": "Statewide", "city_type": "state"}
 
     # Foreign-born % (prefer explicit state row; else compute from totals if available)
     if not fb_state.empty:

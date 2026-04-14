@@ -110,7 +110,7 @@ export default function App() {
           unique.filter((c) => c.city_type === "gateway").map((c) => c.city),
         );
 
-        setCities(unique);
+        setCities([...unique, { city: "Statewide", city_type: "state" }]);
         setLoading(false);
       })
       .catch((err) => {
@@ -148,6 +148,9 @@ export default function App() {
   const filteredCities = useMemo(() => {
     const q = cityQuery.trim().toLowerCase();
     const sorted = [...cities].sort((a, b) => {
+      // Put 'Statewide' first
+      if (a.city === 'Statewide') return -1;
+      if (b.city === 'Statewide') return 1;
       if (a.city_type === b.city_type) return a.city.localeCompare(b.city);
       return a.city_type === "gateway" ? -1 : 1;
     });
@@ -174,7 +177,7 @@ export default function App() {
   ).slice(0, topN);
 
   const handleDownload = () => {
-    if (activeTab === "Overview") {
+    if (activeTab === "Foreign Born") {
       const rows = overviewData.map((d) => ({
         city: d.city,
         city_type: d.city_type,
@@ -311,8 +314,8 @@ export default function App() {
             <div className="tabs">
               {[
                 "Overview",
+                "Foreign Born",
                 "Per Capita Comparison",
-                "City Profile",
                 "Origins",
                 "Trends",
                 "Map",
@@ -336,7 +339,7 @@ export default function App() {
             </button>
           </div>
 
-          {activeTab === "Overview" && (
+          {activeTab === "Foreign Born" && (
             <>
               <h2>
                 Foreign-Born % of Population
@@ -404,7 +407,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === "City Profile" && (
+          {activeTab === "Overview" && (
             <CityProfile selectedCities={selectedCities} />
           )}
 

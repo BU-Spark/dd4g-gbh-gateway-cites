@@ -103,16 +103,6 @@ const isRealCountry = (name) => {
   return !NON_COUNTRY_LABELS.has(String(name).trim())
 }
 
-const REGION_OPTIONS = [
-  { value: 'all',       label: 'All regions' },
-  { value: 'Africa',    label: 'Africa' },
-  { value: 'North America', label: 'North America' },
-  { value: 'South America', label: 'South America' },
-  { value: 'Asia',      label: 'Asia' },
-  { value: 'Europe',    label: 'Europe' },
-  { value: 'Oceania',   label: 'Oceania' },
-]
-
 export default function CountryOrigins({ selectedCities = [], allCities = [] }) {
   const [mode, setMode] = useState('by_city')
   const [allData, setAllData] = useState([])
@@ -120,6 +110,11 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
   const [gatewayOnly, setGatewayOnly] = useState(false)
   const [continentTrendData, setContinentTrendData] = useState([])
   const [continentTrendLoading, setContinentTrendLoading] = useState(false)
+  const [selectedCity, setSelectedCity] = useState('')
+  const [topN, setTopN] = useState(15)
+  const [topNCountry, setTopNCountry] = useState(15)
+  const [countrySearch, setCountrySearch] = useState('')
+  const [isSuggestionOpen, setIsSuggestionOpen] = useState(false)
 
   const cityTypeByName = useMemo(() => {
     const map = new Map()
@@ -145,45 +140,7 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
     ]
   }, [allCities])
 
-  const [selectedCity, setSelectedCity] = useState(STATEWIDE_LABEL)
-  const [countrySearch, setCountrySearch] = useState('')
-  const [topN, setTopN] = useState(15)
-  const [topNCountry, setTopNCountry] = useState(15)
-  const [isSuggestionOpen, setIsSuggestionOpen] = useState(false)
-  const effectiveSelectedCity = cityNames.includes(selectedCity)
-    ? selectedCity
-    : STATEWIDE_LABEL
-
-  useEffect(() => {
-    if (selectedCities.length === 1) {
-      setSelectedCity(selectedCities[0])
-      return
-    }
-
-    if (selectedCities.length === 0) {
-      setSelectedCity(STATEWIDE_LABEL)
-    }
-  }, [selectedCities])
-
-const [region, setRegion] = useState('all')
-
-const filteredData = useMemo(() => {
-  if (region === 'all') return allData
-
-  if (region === 'North America') {
-    return allData.filter(
-      r => r.region === 'America' && NORTH_AMERICA_ORIGINS.has(String(r.country).trim())
-    )
-  }
-
-  if (region === 'South America') {
-    return allData.filter(
-      r => r.region === 'America' && SOUTH_AMERICA_ORIGINS.has(String(r.country).trim())
-    )
-  }
-
-  return allData.filter(r => r.region === region)
-}, [allData, region])
+  const effectiveSelectedCity = selectedCity || STATEWIDE_LABEL
 
   useEffect(() => {
     if (cityNames.length === 0) return
@@ -253,23 +210,25 @@ const filteredData = useMemo(() => {
   }, [cityNames, cityTypeByName, gatewayCitySet])
 
   const byCityData = useMemo(() => {
-    const rows = filteredData.filter(r => r.city === effectiveSelectedCity && r.estimate > 0)
+    const rows = allData.filter(r => r.city === effectiveSelectedCity && r.estimate > 0)
     const total = rows.reduce((s, r) => s + r.estimate, 0)
     return rows
       .map(r => ({ ...r, share: total > 0 ? (r.estimate / total) * 100 : 0 }))
       .sort((a, b) => b.estimate - a.estimate)
       .slice(0, topN)
-  }, [effectiveSelectedCity, filteredData, topN])
+  }, [effectiveSelectedCity, allData, topN])
 
   const byCountryData = useMemo(() => {
     if (!countrySearch.trim()) return []
     const q = countrySearch.toLowerCase()
-    const byCountryRows = filteredData.filter(
+    let scopedRows = allData.filter(
       (r) => r.city !== STATEWIDE_LABEL && r.city !== GATEWAY_LABEL
     )
-    const scopedRows = gatewayOnly
-      ? byCountryRows.filter((r) => gatewayCitySet.has(r.city))
-      : byCountryRows
+    if (effectiveSelectedCity && effectiveSelectedCity !== STATEWIDE_LABEL && effectiveSelectedCity !== GATEWAY_LABEL) {
+      scopedRows = scopedRows.filter((r) => r.city === effectiveSelectedCity)
+    } else if (gatewayOnly) {
+      scopedRows = scopedRows.filter((r) => gatewayCitySet.has(r.city))
+    }
 
     const matched = [...new Set(
       scopedRows.filter(r => r.country?.toLowerCase().includes(q)).map(r => r.country)
@@ -280,23 +239,25 @@ const filteredData = useMemo(() => {
       .filter(r => r.country === country && r.estimate > 0)
       .sort((a, b) => b.estimate - a.estimate)
       .slice(0, topNCountry)
-  }, [filteredData, countrySearch, gatewayCitySet, gatewayOnly, topNCountry])
+  }, [allData, countrySearch, effectiveSelectedCity, gatewayCitySet, gatewayOnly, topNCountry])
 
   const suggestions = useMemo(() => {
     if (!countrySearch.trim() || countrySearch.length < 2) return []
     const q = countrySearch.toLowerCase()
-    const byCountryRows = filteredData.filter(
+    let scopedRows = allData.filter(
       (r) => r.city !== STATEWIDE_LABEL && r.city !== GATEWAY_LABEL
     )
-    const scopedRows = gatewayOnly
-      ? byCountryRows.filter((r) => gatewayCitySet.has(r.city))
-      : byCountryRows
+    if (effectiveSelectedCity && effectiveSelectedCity !== STATEWIDE_LABEL && effectiveSelectedCity !== GATEWAY_LABEL) {
+      scopedRows = scopedRows.filter((r) => r.city === effectiveSelectedCity)
+    } else if (gatewayOnly) {
+      scopedRows = scopedRows.filter((r) => gatewayCitySet.has(r.city))
+    }
 
     return [...new Set(scopedRows.map(r => r.country))]
       .filter(c => c?.toLowerCase().includes(q))
       .sort()
       .slice(0, 8)
-  }, [filteredData, countrySearch, gatewayCitySet, gatewayOnly])
+  }, [allData, countrySearch, effectiveSelectedCity, gatewayCitySet, gatewayOnly])
 
   const byContinentData = useMemo(() => {
     const cityRows = allData.filter(
@@ -436,22 +397,6 @@ const filteredData = useMemo(() => {
               >
                 {[10, 15, 20, 30].map(n => (
                   <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* ← NEW: Region dropdown */}
-            <div>
-              <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
-                Region
-              </label>
-              <select
-                value={region}
-                onChange={e => setRegion(e.target.value)}
-                style={{ background: '#1e1e2e', color: '#fff', border: '1px solid #444', borderRadius: '6px', padding: '0.35rem 0.6rem' }}
-              >
-                {REGION_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </div>
