@@ -142,6 +142,16 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
 
   const effectiveSelectedCity = selectedCity || STATEWIDE_LABEL
 
+  // Sync with sidebar city filter
+  useEffect(() => {
+    if (selectedCities.length > 0) {
+      const city = selectedCities[0]
+      setSelectedCity(city === 'Statewide' ? '' : city)
+    } else {
+      setSelectedCity('')
+    }
+  }, [selectedCities])
+
   useEffect(() => {
     if (cityNames.length === 0) return
 
@@ -373,21 +383,6 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
             <div>
               <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
-                City
-              </label>
-              <select
-                value={effectiveSelectedCity}
-                onChange={e => setSelectedCity(e.target.value)}
-                style={{ background: '#1e1e2e', color: '#fff', border: '1px solid #444', borderRadius: '6px', padding: '0.35rem 0.6rem' }}
-              >
-                {cityNames.map(city => (
-                  <option key={city} value={city}>{city}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
                 Show top
               </label>
               <select
@@ -404,6 +399,9 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
 
           <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '1rem' }}>
             Top {topN} countries of origin · {effectiveSelectedCity} · 2024 ACS
+          </p>
+          <p style={{ color: '#888', fontSize: '0.8rem', marginBottom: '1rem', fontStyle: 'italic' }}>
+            Only one city is shown at a time. Use the filters on the left to select a different city.
           </p>
 
           <ResponsiveContainer width="100%" height={topN * 28 + 40}>
@@ -552,25 +550,11 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
 
       {mode === 'by_continent' && (
         <>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-            <div>
-              <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
-                City
-              </label>
-              <select
-                value={effectiveSelectedCity}
-                onChange={e => setSelectedCity(e.target.value)}
-                style={{ background: '#1e1e2e', color: '#fff', border: '1px solid #444', borderRadius: '6px', padding: '0.35rem 0.6rem' }}
-              >
-                {cityNames.map(city => (
-                  <option key={city} value={city}>{city}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
           <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '1rem' }}>
             Continent comparison · {effectiveSelectedCity} · 2024 ACS
+          </p>
+          <p style={{ color: '#888', fontSize: '0.8rem', marginBottom: '1rem', fontStyle: 'italic' }}>
+            Only one city is shown at a time. Use the filters on the left to select a different city.
           </p>
 
           <ResponsiveContainer width="100%" height={Math.max(300, byContinentData.length * 42 + 40)}>

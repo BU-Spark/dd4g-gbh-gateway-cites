@@ -126,7 +126,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (selectedCities.length === 0) {
+    // Handle Statewide specially - fetch all data when Statewide is selected
+    if (selectedCities.length === 0 || selectedCities.includes('Statewide')) {
       fetchForeignBorn()
         .then((data) => setForeignBorn(normalizeRows(data)))
         .catch((err) => console.error("Failed to load foreign born:", err));
@@ -170,7 +171,15 @@ export default function App() {
       ...d,
       city_type: gatewayCitySet.has(d.city) ? "gateway" : "other",
     }))
-    .sort((a, b) => (b.fb_pct ?? 0) - (a.fb_pct ?? 0));
+    .sort((a, b) => {
+      // Put Statewide first if it's selected
+      if (selectedCities.includes('Statewide')) {
+        if (a.city === 'Statewide') return -1;
+        if (b.city === 'Statewide') return 1;
+      }
+      // Otherwise sort by percentage
+      return (b.fb_pct ?? 0) - (a.fb_pct ?? 0);
+    });
 
   const overviewData = (
     gatewayOnly ? sorted.filter((d) => gatewayCitySet.has(d.city)) : sorted
