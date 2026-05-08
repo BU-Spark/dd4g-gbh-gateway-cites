@@ -218,6 +218,7 @@ body {
 
 .bar-fill.gateway { background: #4e9af1; }
 .bar-fill.other { background: #bfc4cf; }
+.bar-fill.state { background: #6c757d; }
 
 .bar-value {
   font-size: 0.8rem;

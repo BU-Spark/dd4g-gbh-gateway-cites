@@ -84,6 +84,13 @@ export async function fetchContinentTrend(scope = "state") {
   return fetchJson(`/api/continent-trend?scope=${encodeURIComponent(scope)}`);
 }
 
+export async function fetchMedianIncome(city) {
+  const url = city
+    ? `/api/median-income?city=${encodeURIComponent(city)}`
+    : "/api/median-income";
+  return fetchJson(url);
+}
+
 export async function fetchChat(message) {
   return fetchJson("/api/chat", {
     method: "POST",

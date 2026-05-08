@@ -53,16 +53,29 @@ def num(df: pd.DataFrame, col: str) -> pd.Series:
     return pd.to_numeric(df[col], errors="coerce").replace(-666666666, np.nan)
 
 
+# Census placeholder NAME patterns that are not real municipalities
+JUNK_NAME_PATTERNS = r"^(County subdivisions not defined|Balance of|County subdivisions\b)"
+
 def add_city_type(df: pd.DataFrame) -> pd.DataFrame:
-    """Add city_type based on NAME if not already set."""
+    """Add city_type based on NAME if not already set. Drops Census placeholder rows."""
+    # Drop placeholder rows like "County subdivisions not defined, Suffolk County, MA"
+    if "NAME" in df.columns:
+        df = df[~df["NAME"].astype(str).str.contains(JUNK_NAME_PATTERNS, regex=True, na=False)].copy()
+
     if "city_type" not in df.columns:
         df["city_type"] = "other"
     # Extract clean city name from NAME field e.g. "Lowell city, Massachusetts"
     if "city" not in df.columns:
         df["city"] = df["NAME"].str.replace(r"\s+(city|town|CDP).*", "", regex=True).str.strip()
+
+    # Tag the statewide row first (GEO_ID starts with 0400000US) so it
+    # won't be overwritten by the city-level loop below.
+    state_mask = df["GEO_ID"].str.startswith("0400000US", na=False)
+    df.loc[state_mask, "city_type"] = "state"
+    df.loc[state_mask, "city"]      = "Massachusetts"
+
     for city, ctype in CITY_TYPE_OVERRIDES.items():
         df.loc[df["city"] == city, "city_type"] = ctype
-    # Default unset gateway cities (MA places not in overrides)
     df["city_type"] = df["city_type"].fillna("other")
     return df
 
@@ -170,10 +183,11 @@ def build_education(years):
     adv     = (num(df, "B15002_016E") + num(df, "B15002_017E") +
                num(df, "B15002_033E") + num(df, "B15002_034E"))
 
-    out["total_25plus"]   = total
-    out["hs_pct"]         = hs   / total * 100
-    out["bachelors_pct"]  = bach / total * 100
-    out["advanced_pct"]   = adv  / total * 100
+    out["total_25plus"]      = total
+    out["hs_pct"]            = hs              / total * 100
+    out["bachelors_pct"]     = (bach + adv)    / total * 100  # bachelor's OR higher
+    out["bach_only_pct"]     = bach            / total * 100  # bachelor's only
+    out["advanced_pct"]      = adv             / total * 100  # master's / prof / doctorate
 
     out = add_city_type(out)
     out.to_parquet(PROCESSED / "education.parquet", index=False)
@@ -284,4 +298,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
