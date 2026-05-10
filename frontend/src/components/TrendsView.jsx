@@ -10,7 +10,7 @@ const METRICS = [
   { key: 'unemployment_rate', label: 'Unemployment Rate', format: '%' },
   { key: 'median_income', label: 'Median Household Income', format: '$' },
   { key: 'poverty_rate', label: 'Poverty Rate', format: '%' },
-  { key: 'bachelors_pct', label: "Bachelor's Degree %", format: '%' },
+  { key: 'bachelors_pct', label: "Bachelor's degree or higher %", format: '%' },
   { key: 'homeownership_pct', label: 'Homeownership %', format: '%' },
   { key: 'fb_income', label: 'Foreign-Born Median Income', format: '$' },
 ]

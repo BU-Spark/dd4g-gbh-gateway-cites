@@ -31,12 +31,15 @@ def foreign_born():
     city_type = request.args.get("city_type")
     return jsonify(data_store.get_foreign_born(city=city, city_type=city_type))
 
+@app.get("/api/statewide/foreign-born")
+def statewide_foreign_born():
+    return jsonify(data_store.get_statewide_foreign_born())  # was: get_statewide_foreign_born()
+
 @app.get("/api/country-of-origin")
 def country_of_origin():
     city = request.args.get("city")
     all_years = request.args.get("all_years") == "1"
     return jsonify(data_store.get_country_of_origin(city=city, latest_only=not all_years))
-
 
 @app.get("/api/continent-trend")
 def continent_trend():
@@ -82,6 +85,11 @@ def time_series():
 @app.get("/api/state-profile")
 def state_profile():
     return jsonify(data_store.get_state_profile())
+
+
+@app.get("/api/state-averages")
+def state_averages():
+    return jsonify(data_store.get_state_averages())
 
 
 @app.get("/api/state-country-of-origin")

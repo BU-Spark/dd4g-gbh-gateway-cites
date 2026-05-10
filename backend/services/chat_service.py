@@ -52,13 +52,13 @@ def _gateway_cities_set() -> set[str]:
   return {
     "Attleboro",
     "Barnstable",
+    "Barnstable Town",
     "Brockton",
     "Chelsea",
     "Chicopee",
     "Everett",
     "Fall River",
     "Fitchburg",
-    "Framingham",
     "Haverhill",
     "Holyoke",
     "Lawrence",
@@ -75,6 +75,7 @@ def _gateway_cities_set() -> set[str]:
     "Salem",
     "Springfield",
     "Taunton",
+    "Westfield",
     "Worcester",
   }
 
@@ -1346,4 +1347,3 @@ def chat(message: str) -> Dict[str, Any]:
     "answer": base.get("answer", ""),
     "chart": base.get("chart"),
   }
-

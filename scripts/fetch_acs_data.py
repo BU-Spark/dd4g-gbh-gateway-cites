@@ -1,5 +1,5 @@
 """
-Fetch ACS 5-year estimates from Census API for all MA places, 2012-2024.
+Fetch ACS 5-year estimates from Census API for all MA county subdivisions, 2012-2024.
 Outputs one parquet per table per year into data/interim/{year}/
 
 Usage:
@@ -45,7 +45,7 @@ VARIABLE_OVERRIDES: dict[str, list[str]] = {
         "NAME", "GEO_ID",
         "DP03_0004E", "DP03_0005E",   # employed, unemployed
         "DP03_0062E", "DP03_0063E",   # median/mean household income
-        "DP03_0119E",                  # poverty rate
+        "DP03_0119PE",                 # poverty rate
     ],
 }
 
@@ -105,13 +105,15 @@ def fetch_table(
     for chunk in chunks:
         params: dict[str, str] = {
             "get": ",".join(core + chunk),
-            "for": "place:*",
-            "in":  f"state:{state}",
+            "for": "county subdivision:*",        
+            "in":  f"state:{state}&in=county:*", 
         }
         if api_key:
             params["key"] = api_key
 
-        url = f"{base}?{urlencode(params)}"
+        base_params = urlencode({k: v for k, v in params.items() if k != "in"})
+        url = f"{base}?{base_params}&in={params['in']}"
+
         try:
             with urlopen(url, timeout=30) as r:
                 payload = json.loads(r.read())
@@ -124,13 +126,44 @@ def fetch_table(
         header = payload[0]
         for row in payload[1:]:
             record = dict(zip(header, row))
-            place_fips = record.get("place", "")
-            geo_id = f"1600000US{state}{place_fips}"
+            county_fips = record.get("county", "")
+            cousub_fips = record.get("county subdivision", "")
+            geo_id = f"0600000US{state}{county_fips}{cousub_fips}"
             record["GEO_ID"] = geo_id
             if geo_id not in merged:
                 merged[geo_id] = record
             else:
                 merged[geo_id].update(record)
+
+        time.sleep(0.15)
+
+        # Fetch the matching statewide row for this chunk so metrics.py
+        # can display MA as a benchmark alongside individual places.
+        state_params: dict[str, str] = {
+            "get": ",".join(core + chunk),
+            "for": f"state:{state}",
+        }
+        if api_key:
+            state_params["key"] = api_key
+
+        state_url = f"{base}?{urlencode(state_params)}"
+        try:
+            with urlopen(state_url, timeout=30) as r:
+                state_payload = json.loads(r.read())
+        except HTTPError as exc:
+            raise RuntimeError(f"Census API HTTP {exc.code} → {state_url}")
+
+        if isinstance(state_payload, list) and len(state_payload) >= 2:
+            state_header = state_payload[0]
+            for row in state_payload[1:]:
+                record = dict(zip(state_header, row))
+                geo_id = f"0400000US{state}"  
+                record["GEO_ID"] = geo_id
+                record.setdefault("NAME", "Massachusetts")
+                if geo_id not in merged:
+                    merged[geo_id] = record
+                else:
+                    merged[geo_id].update(record)
 
         time.sleep(0.15)
 

@@ -201,13 +201,14 @@ python scripts/fetch_acs_data.py
 
 This downloads ACS for all MA places (2012–2024).
 
-### Steps 1–3: Process into parquets
+### Steps 1-2: Process into parquets
 
 ```bash
 python scripts/00_validate_raw.py
-python scripts/10_normalize_places.py
 python scripts/20_build_per_capita_metrics.py
 ```
+
+`scripts/10_normalize_places.py` is a legacy single-year helper and is not part of the current multi-year pipeline.
 
 ### ACS Tables Used
 
@@ -226,11 +227,50 @@ python scripts/20_build_per_capita_metrics.py
 
 ---
 
+## Metric Definitions
+
+All dashboard metrics are built from U.S. Census Bureau ACS **5-year** estimates, not ACS 1-year estimates. This keeps the methodology consistent across all Gateway Cities and comparison places, including smaller geographies where ACS 1-year data may not be available. Census Reporter often defaults to ACS 1-year for eligible places, so its values can differ from this dashboard.
+
+Median household income is read directly from ACS Data Profile table `DP03_0062E`. It is not calculated from `B19001`; `B19001` is an income distribution table. The comparable detailed-table median is generally `B19013_001E`.
+
+| Dashboard field | Source table / variable | Calculation |
+| --- | --- | --- |
+| `total_pop` | `B05002_001E` | Total population estimate. |
+| `foreign_born` | `B05002_013E` | Foreign-born population estimate. |
+| `fb_pct` | `B05002_013E`, `B05002_001E` | `foreign_born / total_pop * 100`. |
+| `fb_naturalized` | `B05002_014E` | Foreign-born naturalized U.S. citizens. |
+| `fb_naturalized_pct` | `B05002_014E`, `B05002_013E` | `fb_naturalized / foreign_born * 100`. |
+| `fb_not_citizen` | `B05002_021E` | Foreign-born residents who are not U.S. citizens. |
+| `fb_not_citizen_pct` | `B05002_021E`, `B05002_013E` | `fb_not_citizen / foreign_born * 100`. |
+| `country`, `estimate` | `B05006_*E` | One row per country/place-of-birth variable. Region labels are derived with `country_converter`. |
+| `total_25plus` | `B15002_001E` | Population age 25 and older. |
+| `hs_pct` | `B15002_011E`, `B15002_028E`, `B15002_001E` | High school diploma counts for male and female divided by total age 25+. |
+| `bachelors_pct` | `B15002_015E`, `B15002_016E`, `B15002_017E`, `B15002_032E`, `B15002_033E`, `B15002_034E`, `B15002_001E` | Bachelor's degree or higher divided by total age 25+. |
+| `bach_only_pct` | `B15002_015E`, `B15002_032E`, `B15002_001E` | Bachelor's degree only divided by total age 25+. |
+| `advanced_pct` | `B15002_016E`, `B15002_017E`, `B15002_033E`, `B15002_034E`, `B15002_001E` | Advanced degree divided by total age 25+. |
+| `total_housing_units` | `B25003_001E` | Occupied housing units. |
+| `owner_occupied` | `B25003_002E` | Owner-occupied housing units. |
+| `renter_occupied` | `B25003_003E` | Renter-occupied housing units. |
+| `homeownership_pct` | `B25003_002E`, `B25003_001E` | `owner_occupied / total_housing_units * 100`. |
+| `employed` | `DP03_0004E` | Civilian labor force employed estimate. |
+| `unemployed` | `DP03_0005E` | Civilian labor force unemployed estimate. |
+| `unemployment_rate` | `DP03_0004E`, `DP03_0005E` | `unemployed / (employed + unemployed) * 100`. |
+| `median_household_income` | `DP03_0062E` | Median household income in the past 12 months, inflation-adjusted to the ACS release year. |
+| `mean_household_income` | `DP03_0063E` | Mean household income in the past 12 months, inflation-adjusted to the ACS release year. |
+| `poverty_rate` | `DP03_0119PE` | Percent of all people whose income in the past 12 months is below the poverty level. |
+| `median_income_total` | `B06011_001E` | Median income in the past 12 months for the total population in the table universe. |
+| `median_income_foreign_born` | `B06011_005E` | Median income in the past 12 months for foreign-born residents. |
+| `fb_poverty_universe` | `B05010_002E` | Foreign-born poverty-status universe. |
+| `fb_below_poverty` | `B05010_003E` | Foreign-born population below poverty level. |
+| `fb_poverty_pct` | `B05010_003E`, `B05010_002E` | `fb_below_poverty / fb_poverty_universe * 100`. |
+
+---
+
 ## Gateway Cities
 
 The 26 Massachusetts Gateway Cities tracked in this dashboard:
 
-Attleboro, Barnstable, Brockton, Chelsea, Chicopee, Everett, Fall River, Fitchburg, Framingham, Haverhill, Holyoke, Lawrence, Leominster, Lowell, Lynn, Malden, Methuen, New Bedford, Peabody, Pittsfield, Quincy, Revere, Salem, Springfield, Taunton, Worcester
+Attleboro, Barnstable, Brockton, Chelsea, Chicopee, Everett, Fall River, Fitchburg, Haverhill, Holyoke, Lawrence, Leominster, Lowell, Lynn, Malden, Methuen, New Bedford, Peabody, Pittsfield, Quincy, Revere, Salem, Springfield, Taunton, Westfield, Worcester
 
 All other Massachusetts places are labeled as **Other Cities in MA** for comparison.
 

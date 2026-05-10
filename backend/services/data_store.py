@@ -16,6 +16,22 @@ def _sanitize(df: pd.DataFrame) -> pd.DataFrame:
 def _load(filename: str) -> pd.DataFrame:
     return pd.read_parquet(PROCESSED / filename)
 
+def _find_state_row(df: pd.DataFrame) -> pd.DataFrame:
+    # Try GEO_ID first (most reliable — set in fetch step)
+    if "GEO_ID" in df.columns:
+        geo_mask = df["GEO_ID"].astype(str).str.startswith("0400000US", na=False)
+        if geo_mask.any():
+            return df[geo_mask]
+    # Fallback: match by city name
+    if "city" not in df.columns:
+        return df.iloc[0:0]
+    candidates = {
+        "Massachusetts",
+        "Commonwealth of Massachusetts",
+        "Massachusetts State",
+        "MA",
+    }
+    return df[df["city"].astype(str).isin(candidates)]
 
 def _to_records(df: pd.DataFrame) -> list:
     return _sanitize(df).to_dict(orient="records")
@@ -24,11 +40,13 @@ def _to_records(df: pd.DataFrame) -> list:
 def get_cities_master():
     df = _load("cities_master.parquet")
     df = df.sort_values("year").drop_duplicates(subset=["city"], keep="last")
+    df = df[df["city_type"] != "state"]
     return _to_records(df)
 
 
 def get_foreign_born(city: str = None, city_type: str = None):
     df = _load("foreign_born_core.parquet")
+    df = df[df["city_type"] != "state"]
     if city:
         df = df[df["city"] == city]
     if city_type:
@@ -62,11 +80,11 @@ REGION_LABELS = {
 
 
 GATEWAY_CITY_NAMES = {
-    "Attleboro", "Barnstable", "Brockton", "Chelsea", "Chicopee",
-    "Everett", "Fall River", "Fitchburg", "Framingham", "Haverhill",
+    "Attleboro", "Barnstable", "Barnstable Town", "Brockton", "Chelsea", "Chicopee",
+    "Everett", "Fall River", "Fitchburg", "Haverhill",
     "Holyoke", "Lawrence", "Leominster", "Lowell", "Lynn", "Malden",
     "Methuen", "New Bedford", "Peabody", "Pittsfield", "Quincy",
-    "Revere", "Salem", "Springfield", "Taunton", "Worcester",
+    "Revere", "Salem", "Springfield", "Taunton", "Westfield", "Worcester",
 }
 
 
@@ -160,9 +178,17 @@ def get_map_stats():
     df = _load("foreign_born_core.parquet")
     if "year" in df.columns:
         df = df[df["year"] == df["year"].max()]
+    df = df[df["city_type"] != "state"]
     cols = [c for c in ["city", "city_type", "fb_pct", "foreign_born", "total_pop"] if c in df.columns]
     return _to_records(df[cols].drop_duplicates(subset=["city"]))
 
+def get_statewide_foreign_born():
+    """Return the real ACS statewide row for foreign_born_core, all years."""
+    df = _load("foreign_born_core.parquet")
+    state_df = _find_state_row(df)
+    if state_df.empty:
+        return []
+    return _to_records(state_df.sort_values("year"))
 
 def get_time_series(city: str = None, metric: str = "fb_pct"):
     METRIC_MAP = {
@@ -225,21 +251,6 @@ def _weighted_avg(df: pd.DataFrame, value_col: str, weight_cols: list[str]) -> f
     w = weights[mask]
     return float((v * w).sum() / w.sum())
 
-
-def _find_state_row(df: pd.DataFrame) -> pd.DataFrame:
-    if "city" not in df.columns:
-        return df.iloc[0:0]
-    # Common spellings that might appear in source data
-    candidates = {
-        "Massachusetts",
-        "Commonwealth of Massachusetts",
-        "Massachusetts State",
-        "MA",
-    }
-    state_df = df[df["city"].astype(str).isin(candidates)]
-    return state_df
-
-
 def get_state_profile():
     """
     Returns a single statewide profile row for Massachusetts, using a real
@@ -250,11 +261,13 @@ def get_state_profile():
     emp = _latest(_load("employment_income.parquet"))
     edu = _latest(_load("education.parquet"))
     own = _latest(_load("homeownership.parquet"))
+    med = _latest(_load("median_income.parquet"))
 
     fb_state = _find_state_row(fb)
     emp_state = _find_state_row(emp)
     edu_state = _find_state_row(edu)
     own_state = _find_state_row(own)
+    med_state = _find_state_row(med)
 
     out: dict = {"city": "Statewide", "city_type": "state"}
 
@@ -325,7 +338,29 @@ def get_state_profile():
             ["housing_units", "households", "total_pop"],
         )
 
-    return out
+    if not med_state.empty:
+        row = med_state.iloc[-1]
+        out["median_income_foreign_born"] = row.get("median_income_foreign_born")
+    else:
+        out["median_income_foreign_born"] = _weighted_avg(
+            med, "median_income_foreign_born", ["median_income_total"]
+        )
+
+    return {
+        k: (
+            None if v is None or (isinstance(v, float) and np.isnan(v))
+            else int(v) if isinstance(v, (np.integer,))
+            else float(v) if isinstance(v, (np.floating,))
+            else v
+        )
+        for k, v in out.items()
+    }
+
+
+def get_state_averages():
+    """Compatibility alias for clients that ask for statewide averages."""
+    return get_state_profile()
+
 
 
 def get_state_country_of_origin():
@@ -366,5 +401,3 @@ def get_state_country_of_origin():
         .sort_values("estimate", ascending=False)
     )
     return _to_records(grouped)
-
-

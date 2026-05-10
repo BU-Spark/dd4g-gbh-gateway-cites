@@ -60,7 +60,7 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
   const METRICS = [
     { key: 'fb_pct', label: 'Foreign-Born %' },
     { key: 'unemployment_rate', label: 'Unemployment Rate %' },
-    { key: 'bachelors_pct', label: "Bachelor's Degree %" },
+    { key: 'bachelors_pct', label: "Bachelor's degree or higher %" },
     { key: 'homeownership_pct', label: 'Homeownership %' },
     { key: 'median_household_income', label: 'Median Household Income' },
   ]
@@ -181,7 +181,7 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
   return (
     <div>
       <div className="comparison-controls">
-        <h2>Per Capita Comparison — {selectedMetric.label}</h2>
+        <h2>City Metrics — {selectedMetric.label}</h2>
 
         <div className="overview-controls">
           <div className="overview-control-group">

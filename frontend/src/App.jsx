@@ -22,13 +22,13 @@ const normalizeRows = (rows = []) =>
 const GATEWAY_CITIES = new Set([
   "Attleboro",
   "Barnstable",
+  "Barnstable Town",
   "Brockton",
   "Chelsea",
   "Chicopee",
   "Everett",
   "Fall River",
   "Fitchburg",
-  "Framingham",
   "Haverhill",
   "Holyoke",
   "Lawrence",
@@ -45,6 +45,7 @@ const GATEWAY_CITIES = new Set([
   "Salem",
   "Springfield",
   "Taunton",
+  "Westfield",
   "Worcester",
 ]);
 
@@ -126,19 +127,42 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Handle Statewide specially - fetch all data when Statewide is selected
-    if (selectedCities.length === 0 || selectedCities.includes('Statewide')) {
-      fetchForeignBorn()
-        .then((data) => setForeignBorn(normalizeRows(data)))
-        .catch((err) => console.error("Failed to load foreign born:", err));
-    } else {
-      Promise.all(selectedCities.map((c) => fetchForeignBorn({ city: c })))
-        .then((results) => setForeignBorn(normalizeRows(results.flat())))
-        .catch((err) =>
-          console.error("Failed to load foreign born for cities:", err),
-        );
-    }
-  }, [selectedCities]);
+  if (selectedCities.length === 0) {
+    // Fetch all cities AND the statewide row, pin state to top
+    Promise.all([
+      fetchForeignBorn(),
+      fetch("/api/statewide/foreign-born").then((r) => r.json()),
+    ])
+      .then(([cityData, stateData]) => {
+        const maxYear = Math.max(...stateData.map((x) => x.year));
+        const stateRow = stateData
+          .filter((d) => d.year === maxYear)
+          .map((d) => ({ ...d, city: "Massachusetts (Statewide)", city_type: "state" }));
+        setForeignBorn([...stateRow, ...normalizeRows(cityData)]);
+      })
+      .catch((err) => console.error("Failed to load foreign born:", err));
+
+  } else if (selectedCities.includes("Statewide")) {
+    const otherCities = selectedCities.filter((c) => c !== "Statewide");
+    Promise.all([
+      fetch("/api/statewide/foreign-born").then((r) => r.json()),
+      ...otherCities.map((c) => fetchForeignBorn({ city: c })),
+    ])
+      .then(([stateData, ...cityResults]) => {
+        const maxYear = Math.max(...stateData.map((x) => x.year));
+        const stateRow = stateData
+          .filter((d) => d.year === maxYear)
+          .map((d) => ({ ...d, city: "Massachusetts (Statewide)", city_type: "state" }));
+        setForeignBorn(normalizeRows([...stateRow, ...cityResults.flat()]));
+      })
+      .catch((err) => console.error("Failed to load foreign born:", err));
+
+  } else {
+    Promise.all(selectedCities.map((c) => fetchForeignBorn({ city: c })))
+      .then((results) => setForeignBorn(normalizeRows(results.flat())))
+      .catch((err) => console.error("Failed to load foreign born for cities:", err));
+  }
+}, [selectedCities]);
 
   const toggleCity = (city) => {
     setSelectedCities((prev) =>
@@ -167,19 +191,17 @@ export default function App() {
   }, [cities]);
 
   const sorted = [...foreignBorn]
-    .map((d) => ({
-      ...d,
-      city_type: gatewayCitySet.has(d.city) ? "gateway" : "other",
-    }))
-    .sort((a, b) => {
-      // Put Statewide first if it's selected
-      if (selectedCities.includes('Statewide')) {
-        if (a.city === 'Statewide') return -1;
-        if (b.city === 'Statewide') return 1;
-      }
-      // Otherwise sort by percentage
-      return (b.fb_pct ?? 0) - (a.fb_pct ?? 0);
-    });
+  .map((d) => ({
+    ...d,
+    city_type: d.city_type === "state"
+      ? "state"
+      : gatewayCitySet.has(d.city) ? "gateway" : "other",
+  }))
+  .sort((a, b) => {
+    if (a.city_type === "state") return -1;
+    if (b.city_type === "state") return 1;
+    return (b.fb_pct ?? 0) - (a.fb_pct ?? 0);
+  });
 
   const overviewData = (
     gatewayOnly ? sorted.filter((d) => gatewayCitySet.has(d.city)) : sorted
@@ -324,7 +346,7 @@ export default function App() {
               {[
                 "Overview",
                 "Foreign Born",
-                "Per Capita Comparison",
+                "City Metrics",
                 "Origins",
                 "Trends",
                 "Map",
@@ -409,7 +431,7 @@ export default function App() {
             </>
           )}
 
-          {activeTab === "Per Capita Comparison" && (
+          {activeTab === "City Metrics" && (
             <PerCapitaComparison
               selectedCities={selectedCities}
               allCities={cities}
