@@ -22,13 +22,13 @@ const normalizeRows = (rows = []) =>
 const GATEWAY_CITIES = new Set([
   "Attleboro",
   "Barnstable",
+  "Barnstable Town",
   "Brockton",
   "Chelsea",
   "Chicopee",
   "Everett",
   "Fall River",
   "Fitchburg",
-  "Framingham",
   "Haverhill",
   "Holyoke",
   "Lawrence",
@@ -45,6 +45,7 @@ const GATEWAY_CITIES = new Set([
   "Salem",
   "Springfield",
   "Taunton",
+  "Westfield",
   "Worcester",
 ]);
 

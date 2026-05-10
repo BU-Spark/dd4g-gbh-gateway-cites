@@ -25,7 +25,12 @@ def _find_state_row(df: pd.DataFrame) -> pd.DataFrame:
     # Fallback: match by city name
     if "city" not in df.columns:
         return df.iloc[0:0]
-    candidates = {"Massachusetts", "Commonwealth of Massachusetts", "MA"}
+    candidates = {
+        "Massachusetts",
+        "Commonwealth of Massachusetts",
+        "Massachusetts State",
+        "MA",
+    }
     return df[df["city"].astype(str).isin(candidates)]
 
 def _to_records(df: pd.DataFrame) -> list:
@@ -75,11 +80,11 @@ REGION_LABELS = {
 
 
 GATEWAY_CITY_NAMES = {
-    "Attleboro", "Barnstable", "Brockton", "Chelsea", "Chicopee",
-    "Everett", "Fall River", "Fitchburg", "Framingham", "Haverhill",
+    "Attleboro", "Barnstable", "Barnstable Town", "Brockton", "Chelsea", "Chicopee",
+    "Everett", "Fall River", "Fitchburg", "Haverhill",
     "Holyoke", "Lawrence", "Leominster", "Lowell", "Lynn", "Malden",
     "Methuen", "New Bedford", "Peabody", "Pittsfield", "Quincy",
-    "Revere", "Salem", "Springfield", "Taunton", "Worcester",
+    "Revere", "Salem", "Springfield", "Taunton", "Westfield", "Worcester",
 }
 
 
@@ -246,21 +251,6 @@ def _weighted_avg(df: pd.DataFrame, value_col: str, weight_cols: list[str]) -> f
     w = weights[mask]
     return float((v * w).sum() / w.sum())
 
-
-def _find_state_row(df: pd.DataFrame) -> pd.DataFrame:
-    if "city" not in df.columns:
-        return df.iloc[0:0]
-    # Common spellings that might appear in source data
-    candidates = {
-        "Massachusetts",
-        "Commonwealth of Massachusetts",
-        "Massachusetts State",
-        "MA",
-    }
-    state_df = df[df["city"].astype(str).isin(candidates)]
-    return state_df
-
-
 def get_state_profile():
     """
     Returns a single statewide profile row for Massachusetts, using a real
@@ -367,6 +357,11 @@ def get_state_profile():
     }
 
 
+def get_state_averages():
+    """Compatibility alias for clients that ask for statewide averages."""
+    return get_state_profile()
+
+
 
 def get_state_country_of_origin():
     """
@@ -406,5 +401,3 @@ def get_state_country_of_origin():
         .sort_values("estimate", ascending=False)
     )
     return _to_records(grouped)
-
-

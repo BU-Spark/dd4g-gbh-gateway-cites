@@ -28,6 +28,36 @@ CITY_TYPE_OVERRIDES = {
     "Marlborough": "comparison",
 }
 
+GATEWAY_CITIES = {
+    "Attleboro",
+    "Barnstable",
+    "Barnstable Town",
+    "Brockton",
+    "Chelsea",
+    "Chicopee",
+    "Everett",
+    "Fall River",
+    "Fitchburg",
+    "Haverhill",
+    "Holyoke",
+    "Lawrence",
+    "Leominster",
+    "Lowell",
+    "Lynn",
+    "Malden",
+    "Methuen",
+    "New Bedford",
+    "Peabody",
+    "Pittsfield",
+    "Quincy",
+    "Revere",
+    "Salem",
+    "Springfield",
+    "Taunton",
+    "Westfield",
+    "Worcester",
+}
+
 
 def load_year(table: str, year: int) -> pd.DataFrame | None:
     path = INTERIM / str(year) / f"{table}.parquet"
@@ -73,6 +103,8 @@ def add_city_type(df: pd.DataFrame) -> pd.DataFrame:
     state_mask = df["GEO_ID"].str.startswith("0400000US", na=False)
     df.loc[state_mask, "city_type"] = "state"
     df.loc[state_mask, "city"]      = "Massachusetts"
+
+    df.loc[df["city"].isin(GATEWAY_CITIES), "city_type"] = "gateway"
 
     for city, ctype in CITY_TYPE_OVERRIDES.items():
         df.loc[df["city"] == city, "city_type"] = ctype
@@ -228,7 +260,7 @@ def build_employment_income(years):
     out["unemployment_rate"]       = unemployed / total_lf * 100
     out["median_household_income"] = num(df, "DP03_0062E")
     out["mean_household_income"]   = num(df, "DP03_0063E")
-    out["poverty_rate"]            = num(df, "DP03_0119E")
+    out["poverty_rate"]            = num(df, "DP03_0119PE")
 
     out = add_city_type(out)
     out.to_parquet(PROCESSED / "employment_income.parquet", index=False)

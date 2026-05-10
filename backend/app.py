@@ -87,6 +87,11 @@ def state_profile():
     return jsonify(data_store.get_state_profile())
 
 
+@app.get("/api/state-averages")
+def state_averages():
+    return jsonify(data_store.get_state_averages())
+
+
 @app.get("/api/state-country-of-origin")
 def state_country_of_origin():
     return jsonify(data_store.get_state_country_of_origin())

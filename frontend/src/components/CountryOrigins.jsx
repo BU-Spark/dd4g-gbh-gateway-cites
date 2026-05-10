@@ -70,6 +70,41 @@ const normalizeContinent = (row) => {
   return 'Other'
 }
 
+const wrapAxisLabel = (value, maxChars = 23, maxLines = 2) => {
+  const words = String(value || '').split(/\s+/)
+  const lines = []
+  let current = ''
+
+  words.forEach((word) => {
+    const next = current ? `${current} ${word}` : word
+    if (next.length <= maxChars) {
+      current = next
+      return
+    }
+    if (current) lines.push(current)
+    current = word
+  })
+  if (current) lines.push(current)
+
+  if (lines.length <= maxLines) return lines
+  const kept = lines.slice(0, maxLines)
+  kept[maxLines - 1] = `${kept[maxLines - 1].replace(/\.*$/, '')}...`
+  return kept
+}
+
+const WrappedCountryTick = ({ x, y, payload }) => {
+  const lines = wrapAxisLabel(payload?.value)
+  return (
+    <text x={x - 6} y={y} textAnchor="end" fill="#ccc" fontSize={11}>
+      {lines.map((line, index) => (
+        <tspan key={line} x={x - 6} dy={index === 0 ? 0 : 13}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  )
+}
+
 export default function CountryOrigins({ selectedCities = [], allCities = [] }) {
   const [mode, setMode] = useState('by_country')
   const [allData, setAllData] = useState([])
@@ -348,10 +383,10 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
             </p>
 
             <ResponsiveContainer width="100%" height={topN * 28 + 40}>
-              <BarChart data={byCountryChartData} layout="vertical" margin={{ left: 160, right: 60 }}>
+              <BarChart data={byCountryChartData} layout="vertical" margin={{ left: 210, right: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                 <XAxis type="number" tick={{ fill: '#aaa', fontSize: 11 }} />
-                <YAxis dataKey="country" type="category" tick={{ fill: '#ccc', fontSize: 11 }} width={155} />
+                <YAxis dataKey="country" type="category" tick={<WrappedCountryTick />} width={205} interval={0} />
                 <Tooltip
                   formatter={(val, name, props) => [
                     `${val.toLocaleString()} (${props.payload.share.toFixed(1)}% of FB pop)`,

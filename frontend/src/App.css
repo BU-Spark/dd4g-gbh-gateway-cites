@@ -426,6 +426,32 @@ body {
   height: 100% !important;
 }
 
+.leaflet-tooltip {
+  background: #13141f;
+  border: 1px solid #2a2a3a;
+  color: #f8fafc;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.leaflet-tooltip strong {
+  color: #ffffff;
+}
+
+.recharts-tooltip-wrapper,
+.recharts-default-tooltip,
+.recharts-tooltip-label,
+.recharts-tooltip-item,
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-value {
+  color: #f8fafc !important;
+}
+
+.recharts-default-tooltip {
+  background: #13141f !important;
+  border: 1px solid #2a2a3a !important;
+  border-radius: 6px;
+}
+
 /* =========================
    City search
 ========================= */

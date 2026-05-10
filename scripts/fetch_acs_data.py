@@ -45,7 +45,7 @@ VARIABLE_OVERRIDES: dict[str, list[str]] = {
         "NAME", "GEO_ID",
         "DP03_0004E", "DP03_0005E",   # employed, unemployed
         "DP03_0062E", "DP03_0063E",   # median/mean household income
-        "DP03_0119E",                  # poverty rate
+        "DP03_0119PE",                 # poverty rate
     ],
 }
 

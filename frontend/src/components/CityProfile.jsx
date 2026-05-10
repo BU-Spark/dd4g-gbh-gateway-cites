@@ -64,6 +64,41 @@ const normalizeRegion = (row) => {
   return 'Other'
 }
 
+const wrapAxisLabel = (value, maxChars = 23, maxLines = 2) => {
+  const words = String(value || '').split(/\s+/)
+  const lines = []
+  let current = ''
+
+  words.forEach((word) => {
+    const next = current ? `${current} ${word}` : word
+    if (next.length <= maxChars) {
+      current = next
+      return
+    }
+    if (current) lines.push(current)
+    current = word
+  })
+  if (current) lines.push(current)
+
+  if (lines.length <= maxLines) return lines
+  const kept = lines.slice(0, maxLines)
+  kept[maxLines - 1] = `${kept[maxLines - 1].replace(/\.*$/, '')}...`
+  return kept
+}
+
+const WrappedCountryTick = ({ x, y, payload }) => {
+  const lines = wrapAxisLabel(payload?.value)
+  return (
+    <text x={x - 6} y={y} textAnchor="end" fill="#aaa" fontSize={11}>
+      {lines.map((line, index) => (
+        <tspan key={line} x={x - 6} dy={index === 0 ? 0 : 13}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  )
+}
+
 const downloadCSV = (filename, rows) => {
   if (!rows || !rows.length) return
   const headers = Object.keys(rows[0])
@@ -340,11 +375,11 @@ export default function CityProfile({ selectedCities }) {
                 <BarChart
                   data={origins[profile.city]}
                   layout="vertical"
-                  margin={{ top: 8, right: 24, left: 115, bottom: 8 }}
+                  margin={{ top: 8, right: 24, left: 190, bottom: 8 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                   <XAxis type="number" tick={{ fill: '#aaa' }} />
-                  <YAxis dataKey="country" type="category" tick={{ fill: '#aaa' }} width={150} interval={0} />
+                  <YAxis dataKey="country" type="category" tick={<WrappedCountryTick />} width={185} interval={0} />
                   <Tooltip contentStyle={{ background: '#1e1e2e', border: '1px solid #444', color: '#fff' }} />
                   <Bar dataKey="estimate" fill="#4e9af1" radius={[0, 4, 4, 0]} />
                 </BarChart>
