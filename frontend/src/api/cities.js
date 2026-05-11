@@ -1,6 +1,75 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
+const responseCache = new Map();
 
 async function fetchJson(path, options = {}) {
+  const method = (options.method || "GET").toUpperCase();
+  const useCache = method === "GET" && options.cache !== "no-store";
+  const cacheKey = `${method}:${path}`;
+
+  if (useCache && responseCache.has(cacheKey)) {
+    return responseCache.get(cacheKey);
+  }
+
+  const request = fetch(`${API_BASE_URL}${path}`, options)
+    .then(async (res) => {
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        throw new Error(data?.error || `Request failed: ${res.status}`);
+      }
+
+      return data;
+    })
+    .catch((error) => {
+      if (useCache) responseCache.delete(cacheKey);
+      throw error;
+    });
+
+  if (useCache) responseCache.set(cacheKey, request);
+  return request;
+}
+
+export function clearApiCache() {
+  responseCache.clear();
+}
+
+export function prefetchDashboardData() {
+  const commonMetrics = [
+    "fb_pct",
+    "unemployment_rate",
+    "median_income",
+    "poverty_rate",
+    "bachelors_pct",
+    "homeownership_pct",
+    "fb_income",
+  ];
+
+  const requests = [
+    fetchCities(),
+    fetchForeignBorn(),
+    fetchMapStats(),
+    fetchEducation(),
+    fetchEmploymentIncome(),
+    fetchHomeownership(),
+    fetchMedianIncome(),
+    fetchStateProfile(),
+    fetchStateAverages(),
+    fetchStatewideForeignBorn(),
+    fetchStateCountryOfOrigin(),
+    fetchContinentTrend("state"),
+    fetchContinentTrend("gateway"),
+    ...commonMetrics.map((metric) => fetchTimeSeries({ metric })),
+  ];
+
+  return Promise.allSettled(requests);
+}
+
+async function fetchUncachedJson(path, options = {}) {
   const res = await fetch(`${API_BASE_URL}${path}`, options);
 
   let data;
@@ -24,6 +93,10 @@ export async function fetchCities() {
 export async function fetchForeignBorn(params = {}) {
   const query = new URLSearchParams(params).toString();
   return fetchJson(`/api/foreign-born${query ? `?${query}` : ""}`);
+}
+
+export async function fetchStatewideForeignBorn() {
+  return fetchJson("/api/statewide/foreign-born");
 }
 
 export async function fetchCountryOfOrigin(city, options = {}) {
@@ -92,7 +165,7 @@ export async function fetchMedianIncome(city) {
 }
 
 export async function fetchChat(message) {
-  return fetchJson("/api/chat", {
+  return fetchUncachedJson("/api/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
