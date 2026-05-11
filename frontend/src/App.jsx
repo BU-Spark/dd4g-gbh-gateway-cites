@@ -6,7 +6,13 @@ import CountryOrigins from "./components/CountryOrigins";
 import MapView from "./components/MapView";
 import TrendsView from "./components/TrendsView";
 import ChatBot from "./components/ChatBot";
-import { fetchCities, fetchForeignBorn, fetchMapStats } from "./api/cities";
+import {
+  fetchCities,
+  fetchForeignBorn,
+  fetchMapStats,
+  fetchStatewideForeignBorn,
+  prefetchDashboardData,
+} from "./api/cities";
 
 const normalizeCityType = (city) => {
   const cityName = String(city || "").trim();
@@ -86,7 +92,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [cityQuery, setCityQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
-  const [topN, setTopN] = useState(15);
+  const [topN, setTopN] = useState(20);
   const [gatewayOnly, setGatewayOnly] = useState(false);
 
   useEffect(() => {
@@ -121,6 +127,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    prefetchDashboardData().catch((err) => {
+      console.error("Failed to preload dashboard data:", err);
+    });
+  }, []);
+
+  useEffect(() => {
     fetchMapStats()
       .then((data) => setMapStats(normalizeRows(data)))
       .catch((err) => console.error("Failed to load map stats:", err));
@@ -128,38 +140,32 @@ export default function App() {
 
   useEffect(() => {
   if (selectedCities.length === 0) {
-    // Fetch all cities AND the statewide row, pin state to top
-    Promise.all([
-      fetchForeignBorn(),
-      fetch("/api/statewide/foreign-born").then((r) => r.json()),
-    ])
-      .then(([cityData, stateData]) => {
-        const maxYear = Math.max(...stateData.map((x) => x.year));
-        const stateRow = stateData
-          .filter((d) => d.year === maxYear)
-          .map((d) => ({ ...d, city: "Massachusetts (Statewide)", city_type: "state" }));
-        setForeignBorn([...stateRow, ...normalizeRows(cityData)]);
-      })
+    fetchForeignBorn()
+      .then((cityData) => setForeignBorn(normalizeRows(cityData)))
       .catch((err) => console.error("Failed to load foreign born:", err));
 
   } else if (selectedCities.includes("Statewide")) {
     const otherCities = selectedCities.filter((c) => c !== "Statewide");
     Promise.all([
-      fetch("/api/statewide/foreign-born").then((r) => r.json()),
-      ...otherCities.map((c) => fetchForeignBorn({ city: c })),
+      fetchStatewideForeignBorn(),
+      fetchForeignBorn(),
     ])
-      .then(([stateData, ...cityResults]) => {
+      .then(([stateData, cityData]) => {
         const maxYear = Math.max(...stateData.map((x) => x.year));
         const stateRow = stateData
           .filter((d) => d.year === maxYear)
           .map((d) => ({ ...d, city: "Massachusetts (Statewide)", city_type: "state" }));
-        setForeignBorn(normalizeRows([...stateRow, ...cityResults.flat()]));
+        const selectedRows = cityData.filter((d) => otherCities.includes(d.city));
+        setForeignBorn(normalizeRows([...stateRow, ...selectedRows]));
       })
       .catch((err) => console.error("Failed to load foreign born:", err));
 
   } else {
-    Promise.all(selectedCities.map((c) => fetchForeignBorn({ city: c })))
-      .then((results) => setForeignBorn(normalizeRows(results.flat())))
+    fetchForeignBorn()
+      .then((cityData) => {
+        const selectedRows = cityData.filter((d) => selectedCities.includes(d.city));
+        setForeignBorn(normalizeRows(selectedRows));
+      })
       .catch((err) => console.error("Failed to load foreign born for cities:", err));
   }
 }, [selectedCities]);
@@ -286,7 +292,9 @@ export default function App() {
                       <button
                         key={`${c.city}-${c.city_type}-search`}
                         className={`city-search-result ${selectedCities.includes(c.city) ? "active" : ""}`}
-                        onClick={() => {
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
                           toggleCity(c.city);
                           setCityQuery("");
                         }}
