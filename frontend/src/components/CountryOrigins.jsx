@@ -13,36 +13,24 @@ const STATEWIDE_LABEL = 'Massachusetts Statewide Total'
 const GATEWAY_LABEL = 'Gateway Cities (Combined)'
 
 const CONTINENT_ORDER = [
-  'North America',
-  'South America',
-  'Africa',
-  'Asia',
   'Europe',
+  'Asia',
+  'Africa',
   'Oceania',
+  'Latin America',
+  'Northern America',
   'Other',
 ]
 
 const CONTINENT_COLORS = {
   'Asia':          '#4e9af1',
-  'North America': '#f1914e',
+  'Latin America': '#f1914e',
   'Europe':        '#a78bfa',
-  'South America': '#34d399',
+  'Northern America': '#34d399',
   'Africa':        '#fbbf24',
   'Oceania':       '#f472b6',
   'Other':         '#bfc4cf',
 }
-
-const NORTH_AMERICA_ORIGINS = new Set([
-  'Bahamas', 'Barbados', 'Belize', 'Canada', 'Costa Rica', 'Cuba', 'Dominica',
-  'Dominican Republic', 'El Salvador', 'Grenada', 'Guatemala', 'Haiti', 'Honduras',
-  'Jamaica', 'Mexico', 'Nicaragua', 'Panama', 'St. Lucia',
-  'St. Vincent and the Grenadines', 'Trinidad and Tobago',
-])
-
-const SOUTH_AMERICA_ORIGINS = new Set([
-  'Argentina', 'Bolivia', 'Brazil', 'Chile', 'Colombia', 'Ecuador',
-  'Guyana', 'Peru', 'Uruguay', 'Venezuela',
-])
 
 const NON_COUNTRY_LABELS = new Set([
   'Africa', 'Europe', 'Americas', 'Asia', 'Oceania', 'Northern America',
@@ -60,13 +48,7 @@ const isRealCountry = (name) => {
 
 const normalizeContinent = (row) => {
   const rawRegion = String(row.region || '').trim()
-  const country = String(row.country || '').trim()
-  if (rawRegion === 'America') {
-    if (NORTH_AMERICA_ORIGINS.has(country)) return 'North America'
-    if (SOUTH_AMERICA_ORIGINS.has(country)) return 'South America'
-    return 'Other'
-  }
-  if (['Africa', 'Asia', 'Europe', 'Oceania'].includes(rawRegion)) return rawRegion
+  if (['Africa', 'Asia', 'Europe', 'Oceania', 'Latin America', 'Northern America'].includes(rawRegion)) return rawRegion
   return 'Other'
 }
 
@@ -306,9 +288,9 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
     <div style={{ padding: '1rem' }}>
       <h2 style={{ marginBottom: '1rem' }}>Origins</h2>
 
-      {/* Tabs — By Country and By Continent only */}
+      {/* Tabs — By Country and By Region only */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        {[['by_country', 'By Country'], ['by_continent', 'By Continent']].map(([val, label]) => (
+        {[['by_country', 'By Country'], ['by_continent', 'By Region']].map(([val, label]) => (
           <button
             key={val}
             onClick={() => setMode(val)}
@@ -501,7 +483,7 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
         </>
       )}
 
-      {/* ── By Continent ── */}
+      {/* ── By Region ── */}
       {mode === 'by_continent' && (
         <>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -522,7 +504,7 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
           </div>
 
           <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '1rem' }}>
-            Continent breakdown · <strong style={{ color: '#fff' }}>{effectiveChartCity === STATEWIDE_LABEL ? 'MA Statewide' : effectiveChartCity}</strong> · 2024 ACS
+            Region breakdown · <strong style={{ color: '#fff' }}>{effectiveChartCity === STATEWIDE_LABEL ? 'MA Statewide' : effectiveChartCity}</strong> · 2024 ACS
           </p>
 
           <ResponsiveContainer width="100%" height={Math.max(300, byContinentData.length * 42 + 40)}>

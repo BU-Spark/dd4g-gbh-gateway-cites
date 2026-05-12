@@ -239,13 +239,13 @@ export default function TrendsView({ selectedCities }) {
 
         <div>
           <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
-            Show cities
+            Show geographies
           </label>
           <div style={{ display: 'flex', gap: '0.4rem' }}>
             {[
               ['selected', `Selected (${selectedCities.length})`],
               ['gateway', 'All Gateway Cities'],
-              ['all', 'All MA Places'],
+              ['all', 'All MA County Subdivisions'],
             ].map(([val, label]) => (
               <button
                 key={val}
@@ -275,7 +275,7 @@ export default function TrendsView({ selectedCities }) {
         <>
           {cityFilter === 'all' && (
             <p style={{ color: '#f1914e', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
-              ⚠️ Showing all ~260 MA places — select specific cities for a cleaner view
+              ⚠️ Showing all MA county subdivisions — select specific cities for a cleaner view
             </p>
           )}
           <p style={{ color: '#555', fontSize: '0.75rem', marginBottom: '1rem' }}>
