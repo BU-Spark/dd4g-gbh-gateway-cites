@@ -93,11 +93,7 @@ def get_country_of_origin_trend(scope: str = "state"):
     df = _load("country_of_origin.parquet")
     if scope == "gateway":
         df = df[df["city"].isin(GATEWAY_CITY_NAMES)]
-    df = df[
-        ~df["country"].astype(str).str.endswith(":") &
-        ~df["country"].astype(str).str.startswith("Other ") &
-        ~df["country"].astype(str).str.contains(", n.e.c.", regex=False)
-    ].copy()
+    df = df[~df["country"].astype(str).str.endswith(":")].copy()
     df["estimate"] = (
         pd.to_numeric(df["estimate"], errors="coerce")
         .replace(list(BAD_VALUES), np.nan)
@@ -119,11 +115,7 @@ def get_country_of_origin(city: str = None, latest_only: bool = True):
         df = df[df["city"] == city]
     if latest_only and "year" in df.columns:
         df = df[df["year"] == df["year"].max()]
-    df = df[
-        ~df["country"].str.endswith(":") &
-        ~df["country"].str.startswith("Other ") &
-        ~df["country"].str.contains(", n.e.c.", regex=False)
-    ]
+    df = df[~df["country"].str.endswith(":")]
     cols = [c for c in ["city", "city_type", "year", "country", "estimate", "region"] if c in df.columns]
     return _to_records(df[cols])
 
@@ -382,11 +374,7 @@ def get_state_country_of_origin():
         )
 
     # Filter to country rows (skip region headers etc.) similar to get_country_of_origin
-    use_df = use_df[
-        ~use_df["country"].astype(str).str.endswith(":") &
-        ~use_df["country"].astype(str).str.startswith("Other ") &
-        ~use_df["country"].astype(str).str.contains(", n.e.c.", regex=False)
-    ]
+    use_df = use_df[~use_df["country"].astype(str).str.endswith(":")]
 
     cols = [c for c in ["country", "estimate", "region"] if c in use_df.columns]
     use_df = use_df[cols]

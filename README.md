@@ -245,9 +245,9 @@ Median household income is read directly from ACS Data Profile table `DP03_0062E
 | `country`, `estimate` | `B05006_*E` | One row per country/place-of-birth variable. Region labels are derived with `country_converter`. |
 | `total_25plus` | `B15002_001E` | Population age 25 and older. |
 | `hs_pct` | `B15002_011E`, `B15002_028E`, `B15002_001E` | High school diploma counts for male and female divided by total age 25+. |
-| `bachelors_pct` | `B15002_015E`, `B15002_016E`, `B15002_017E`, `B15002_032E`, `B15002_033E`, `B15002_034E`, `B15002_001E` | Bachelor's degree or higher divided by total age 25+. |
+| `bachelors_pct` | `B15002_015E`, `B15002_016E`, `B15002_017E`, `B15002_018E`, `B15002_032E`, `B15002_033E`, `B15002_034E`, `B15002_035E`, `B15002_001E` | Bachelor's degree or higher divided by total age 25+. |
 | `bach_only_pct` | `B15002_015E`, `B15002_032E`, `B15002_001E` | Bachelor's degree only divided by total age 25+. |
-| `advanced_pct` | `B15002_016E`, `B15002_017E`, `B15002_033E`, `B15002_034E`, `B15002_001E` | Advanced degree divided by total age 25+. |
+| `advanced_pct` | `B15002_016E`, `B15002_017E`, `B15002_018E`, `B15002_033E`, `B15002_034E`, `B15002_035E`, `B15002_001E` | Advanced degree divided by total age 25+. |
 | `total_housing_units` | `B25003_001E` | Occupied housing units. |
 | `owner_occupied` | `B25003_002E` | Owner-occupied housing units. |
 | `renter_occupied` | `B25003_003E` | Renter-occupied housing units. |

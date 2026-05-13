@@ -25,19 +25,7 @@ const STAT_KEYS = [
   { key: 'median_income_foreign_born', label: 'Median Household Income', format: '$', fbOnly: true  },
 ]
 
-const NORTH_AMERICA_ORIGINS = new Set([
-  'Bahamas', 'Barbados', 'Belize', 'Canada', 'Costa Rica', 'Cuba', 'Dominica',
-  'Dominican Republic', 'El Salvador', 'Grenada', 'Guatemala', 'Haiti', 'Honduras',
-  'Jamaica', 'Mexico', 'Nicaragua', 'Panama', 'St. Lucia',
-  'St. Vincent and the Grenadines', 'Trinidad and Tobago',
-])
-
-const SOUTH_AMERICA_ORIGINS = new Set([
-  'Argentina', 'Bolivia', 'Brazil', 'Chile', 'Colombia', 'Ecuador',
-  'Guyana', 'Peru', 'Uruguay', 'Venezuela',
-])
-
-const REGION_ORDER = ['Africa', 'Asia', 'Europe', 'North America', 'South America', 'Oceania', 'Other']
+const REGION_ORDER = ['Europe', 'Asia', 'Africa', 'Oceania', 'Latin America', 'Northern America', 'Other']
 
 const CITY_COLORS = [
   '#4e9af1', '#f0a64a', '#a78bfa', '#34d399', '#f87171',
@@ -55,12 +43,7 @@ const cleanCountryLabel = (label) => String(label || '').replace(/:$/, '').trim(
 
 const normalizeRegion = (row) => {
   const rawRegion = String(row.region || '').replace(/:$/, '').trim()
-  const country = cleanCountryLabel(row.country)
-  if (rawRegion === 'America') {
-    if (NORTH_AMERICA_ORIGINS.has(country)) return 'North America'
-    if (SOUTH_AMERICA_ORIGINS.has(country)) return 'South America'
-  }
-  if (['Africa', 'Asia', 'Europe', 'Oceania'].includes(rawRegion)) return rawRegion
+  if (['Africa', 'Asia', 'Europe', 'Oceania', 'Latin America', 'Northern America'].includes(rawRegion)) return rawRegion
   return 'Other'
 }
 
@@ -129,6 +112,16 @@ const FbBadge = () => (
   </span>
 )
 
+const OriginScopeBadge = () => (
+  <span style={{
+    marginLeft: '0.5rem', color: '#38bdf8', fontSize: '0.7rem',
+    background: '#13283a', borderRadius: '4px', padding: '2px 6px',
+    verticalAlign: 'middle', fontWeight: 600,
+  }}>
+    Total foreign-born population
+  </span>
+)
+
 export default function CityProfile({ selectedCities }) {
   const citiesToShow = selectedCities.length > 0
     ? selectedCities.map((city) => (city === 'Statewide' ? DEFAULT_CITY : city))
@@ -169,7 +162,14 @@ export default function CityProfile({ selectedCities }) {
         .filter((r) => r.estimate > 0)
         .sort((a, b) => b.estimate - a.estimate)
 
-      const topOrigins = originRows.slice().sort((a, b) => b.estimate - a.estimate).slice(0, 10)
+      const topOrigins = originRows
+        .slice()
+        .sort((a, b) => b.estimate - a.estimate)
+        .slice(0, 10)
+        .map((row) => ({
+          ...row,
+          share: totalOrigins > 0 ? (Number(row.estimate) / totalOrigins) * 100 : 0,
+        }))
       return { topOrigins, regions }
     }
 
@@ -291,6 +291,7 @@ export default function CityProfile({ selectedCities }) {
           city: p.city,
           country: row.country,
           estimate: row.estimate,
+          share: row.share,
         })),
       )
 
@@ -370,7 +371,10 @@ export default function CityProfile({ selectedCities }) {
 
           {origins[profile.city]?.length > 0 && (
             <>
-              <h3 style={{ marginBottom: '0.75rem' }}>Top Countries of Origin</h3>
+              <h3 style={{ marginBottom: '0.75rem' }}>
+                Top Countries of Origin
+                <OriginScopeBadge />
+              </h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart
                   data={origins[profile.city]}
@@ -380,7 +384,13 @@ export default function CityProfile({ selectedCities }) {
                   <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                   <XAxis type="number" tick={{ fill: '#aaa' }} />
                   <YAxis dataKey="country" type="category" tick={<WrappedCountryTick />} width={185} interval={0} />
-                  <Tooltip contentStyle={{ background: '#1e1e2e', border: '1px solid #444', color: '#fff' }} />
+                  <Tooltip
+                    formatter={(val, name, props) => [
+                      `${Number(val).toLocaleString()} (${props.payload.share.toFixed(1)}%)`,
+                      'Estimate',
+                    ]}
+                    contentStyle={{ background: '#1e1e2e', border: '1px solid #444', color: '#fff' }}
+                  />
                   <Bar dataKey="estimate" fill="#4e9af1" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -389,7 +399,10 @@ export default function CityProfile({ selectedCities }) {
 
           {regionOrigins[profile.city]?.length > 0 && (
             <>
-              <h3 style={{ marginBottom: '0.75rem', marginTop: '2rem' }}>Regions of Origin</h3>
+              <h3 style={{ marginBottom: '0.75rem', marginTop: '2rem' }}>
+                Regions of Origin
+                <OriginScopeBadge />
+              </h3>
               <ResponsiveContainer width="100%" height={Math.max(260, (regionOrigins[profile.city].length || 1) * 40 + 40)}>
                 <BarChart
                   data={regionOrigins[profile.city]}

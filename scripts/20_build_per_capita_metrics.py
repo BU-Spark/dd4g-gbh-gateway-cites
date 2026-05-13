@@ -9,10 +9,11 @@ Usage:
 
 from __future__ import annotations
 import argparse
+import json
+import os
 from pathlib import Path
 import pandas as pd
 import numpy as np
-import country_converter as coco
 
 INTERIM   = Path("data/interim")
 PROCESSED = Path("data/processed")
@@ -84,7 +85,7 @@ def num(df: pd.DataFrame, col: str) -> pd.Series:
 
 
 # Census placeholder NAME patterns that are not real municipalities
-JUNK_NAME_PATTERNS = r"^(County subdivisions not defined|Balance of|County subdivisions\b)"
+JUNK_NAME_PATTERNS = r"^(?:County subdivisions not defined|Balance of|County subdivisions\b)"
 
 def add_city_type(df: pd.DataFrame) -> pd.DataFrame:
     """Add city_type based on NAME if not already set. Drops Census placeholder rows."""
@@ -138,40 +139,133 @@ def build_foreign_born_core(years):
 
 import requests
 
-def get_country_map(year: int = 2023) -> dict:
-    """Fetch B05006 variable labels from Census API — no hardcoding needed."""
-    r = requests.get(
-        f"https://api.census.gov/data/{year}/acs/acs5/variables.json",
-        timeout=30
-    )
-    variables = r.json()["variables"]
-    return {
-        k: v["label"].split("!!")[-1].strip()
+def _census_api_key() -> str:
+    if os.environ.get("CENSUS_API_KEY"):
+        return os.environ["CENSUS_API_KEY"]
+    env_path = Path(".env")
+    if not env_path.exists():
+        return ""
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        if key.strip() == "CENSUS_API_KEY":
+            return value.strip().strip('"').strip("'")
+    return ""
+
+
+def _label_path(label: str) -> tuple[str, ...]:
+    return tuple(str(label or "").split("!!")[1:])
+
+
+def _clean_origin_label(label: str) -> str:
+    return str(label or "").rstrip(":").strip()
+
+
+def _origin_region_from_path(path: tuple[str, ...]) -> str:
+    parts = [_clean_origin_label(p) for p in path]
+    if len(parts) < 2:
+        return "Other"
+
+    continent = parts[1]
+    if continent == "Americas":
+        if "Northern America" in parts:
+            return "Northern America"
+        if "Latin America" in parts:
+            return "Latin America"
+        return "Americas"
+
+    if continent in {"Africa", "Asia", "Europe", "Oceania"}:
+        return continent
+
+    return "Other"
+
+
+def get_country_map(year: int = 2024) -> dict:
+    """Fetch non-overlapping B05006 place-of-birth variables."""
+    raw_path = Path(f"data/raw/ACSDT5Y{year}.B05006-Data.csv")
+    fallback_raw_path = Path("data/raw/ACSDT5Y2024.B05006-Data.csv")
+    if not raw_path.exists() and year >= 2022 and fallback_raw_path.exists():
+        raw_path = fallback_raw_path
+
+    if raw_path.exists():
+        label_row = pd.read_csv(raw_path, nrows=1)
+        variables = {
+            col: {"label": str(label_row.loc[0, col])}
+            for col in label_row.columns
+        }
+    else:
+        api_key = _census_api_key()
+        params = {"key": api_key} if api_key else None
+        r = requests.get(
+            f"https://api.census.gov/data/{year}/acs/acs5/groups/B05006.json",
+            params=params,
+            timeout=30
+        )
+        r.raise_for_status()
+        variables = r.json()["variables"]
+    candidates = {
+        k: _label_path(v.get("label", ""))
         for k, v in variables.items()
         if k.startswith("B05006_")
         and k.endswith("E")
-        and v.get("label", "").count("!!") >= 2  # skips top-level aggregates/continents
+        and k != "B05006_001E"
+        and v.get("label", "").count("!!") >= 2
     }
+
+    country_parent_paths = {
+        path
+        for path in candidates.values()
+        if len(path) == 4
+        and path[1] != "Americas:"
+        and any(len(other) > len(path) and other[:len(path)] == path for other in candidates.values())
+    }
+
+    out = {}
+    for code, path in candidates.items():
+        if any(len(path) > len(parent) and path[:len(parent)] == parent for parent in country_parent_paths):
+            continue
+
+        has_children = any(
+            len(other) > len(path) and other[:len(path)] == path
+            for other in candidates.values()
+        )
+        if path not in country_parent_paths and (has_children or path[-1].endswith(":")):
+            continue
+
+        out[code] = {
+            "country": _clean_origin_label(path[-1]),
+            "region": _origin_region_from_path(path),
+            "path": "!!".join(path),
+        }
+
+    return out
 
 
 def build_country_of_origin(years):
     print("→ country_of_origin")
 
     print("  Fetching variable labels from Census API...")
-    country_map = get_country_map()
-    print(f"  Found {len(country_map)} country-level variables")
-
     frames = []
     for year in years:
         df = load_year("b05006", year)
         if df is None:
             continue
+        try:
+            country_map = get_country_map(year)
+        except (requests.RequestException, json.JSONDecodeError, KeyError, ValueError) as exc:
+            print(f"  ! {year}: skipped B05006 labels ({exc})")
+            continue
+        print(f"  {year}: found {len(country_map)} non-overlapping place-of-birth variables")
         meta = meta_cols(df)
         available = {k: v for k, v in country_map.items() if k in df.columns}
-        for code, country in available.items():
+        for code, info in available.items():
             rows = df[meta].copy()
-            rows["country"]  = country
+            rows["country"]  = info["country"]
             rows["estimate"] = num(df, code)
+            rows["region"]   = info["region"]
+            rows["acs_path"] = info["path"]
             frames.append(rows)
 
     if not frames:
@@ -181,22 +275,11 @@ def build_country_of_origin(years):
     out = out[out["estimate"].notna()]
     out = add_city_type(out)
 
-    # --- ADD THIS BLOCK ---
-    print("  Tagging regions with coco...")
-    cc = coco.CountryConverter()
-    out["region"] = cc.pandas_convert(
-        out["country"],
-        to="continent",
-        not_found=None
-    )
-    out["region"] = out["region"].apply(lambda x: x[0] if isinstance(x, list) else x)
     print("Region value counts:")
     print(out["region"].value_counts().head(10))
-    print(f"Sample rows with Americas: {len(out[out['region'] == 'Americas'])}")
 
 
     print(f"  ✓ {out['region'].notna().sum()} rows tagged with region")
-    # ----------------------
 
     out.to_parquet(PROCESSED / "country_of_origin.parquet", index=False)
     print(f"  ✓ {len(out)} rows ({out['year'].nunique()} years, {out['country'].nunique()} countries)")
@@ -213,7 +296,8 @@ def build_education(years):
     hs      = num(df, "B15002_011E") + num(df, "B15002_028E")
     bach    = num(df, "B15002_015E") + num(df, "B15002_032E")
     adv     = (num(df, "B15002_016E") + num(df, "B15002_017E") +
-               num(df, "B15002_033E") + num(df, "B15002_034E"))
+               num(df, "B15002_018E") + num(df, "B15002_033E") +
+               num(df, "B15002_034E") + num(df, "B15002_035E"))
 
     out["total_25plus"]      = total
     out["hs_pct"]            = hs              / total * 100
