@@ -5,3 +5,8 @@ __pycache__/
 .env.example
 .venv/
 test.ipynb
+/data/interim/moe_cache
+.env
+.env
+data/raw/_acs_lookup_2019.txt
+data/raw/_g20195ma.csv
