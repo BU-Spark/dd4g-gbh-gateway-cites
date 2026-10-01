@@ -4,11 +4,9 @@ import {
 } from 'recharts'
 import {
   fetchForeignBorn,
-  fetchEmploymentIncome,
-  fetchEducation,
-  fetchHomeownership,
   fetchCountryOfOrigin,
   fetchMedianIncome,
+  fetchForeignBornCharacteristics,
   fetchStateProfile,
   fetchStateCountryOfOrigin,
 } from '../api/cities'
@@ -17,19 +15,18 @@ const STATEWIDE_KEY = '__MA_STATEWIDE__'
 const DEFAULT_CITY = STATEWIDE_KEY
 
 const STAT_KEYS = [
-  { key: 'fb_pct',                     label: 'Foreign-Born %',               format: '%', fbOnly: false },
-  { key: 'unemployment_rate',          label: 'Unemployment Rate %',          format: '%', fbOnly: false },
-  { key: 'bachelors_pct',              label: "Bachelor's degree or higher %", format: '%', fbOnly: false },
-  { key: 'homeownership_pct',          label: 'Homeownership %',              format: '%', fbOnly: false },
-  { key: 'median_household_income',    label: 'Median Household Income',      format: '$', fbOnly: false },
-  { key: 'median_income_foreign_born', label: 'Median Household Income', format: '$', fbOnly: true  },
+  { key: 'fb_pct',                       label: 'Foreign-Born %',                format: '%', fbOnly: false },
+  { key: 'fb_bachelors_pct',             label: "Bachelor's degree or higher %", format: '%', fbOnly: true  },
+  { key: 'fb_homeownership_pct',         label: 'Homeownership %',               format: '%', fbOnly: true  },
+  { key: 'fb_median_household_income',   label: 'Median Household Income',       format: '$', fbOnly: true  },
+  { key: 'median_income_foreign_born',   label: 'Median Income',                 format: '$', fbOnly: true  },
 ]
 
 const REGION_ORDER = ['Europe', 'Asia', 'Africa', 'Oceania', 'Latin America', 'Northern America', 'Other']
 
 const CITY_COLORS = [
-  '#4e9af1', '#f0a64a', '#a78bfa', '#34d399', '#f87171',
-  '#facc15', '#38bdf8', '#fb923c',
+  '#732487', '#2652b2', '#ad40d9', '#bf0f0f', '#4f1c59',
+  '#2b72f6', '#ea0051', '#ffc21b',
 ]
 
 const formatVal = (v, fmt) =>
@@ -72,7 +69,7 @@ const wrapAxisLabel = (value, maxChars = 23, maxLines = 2) => {
 const WrappedCountryTick = ({ x, y, payload }) => {
   const lines = wrapAxisLabel(payload?.value)
   return (
-    <text x={x - 6} y={y} textAnchor="end" fill="#aaa" fontSize={11}>
+    <text x={x - 6} y={y} textAnchor="end" fill="#6f6f6f" fontSize={11}>
       {lines.map((line, index) => (
         <tspan key={line} x={x - 6} dy={index === 0 ? 0 : 13}>
           {line}
@@ -104,8 +101,8 @@ const downloadCSV = (filename, rows) => {
 
 const FbBadge = () => (
   <span style={{
-    marginLeft: '0.4rem', color: '#a78bfa', fontSize: '0.65rem',
-    background: '#2a1f3d', borderRadius: '4px', padding: '1px 5px',
+    marginLeft: '0.4rem', color: '#4f1c59', fontSize: '0.65rem',
+    background: '#edd4f5', borderRadius: '4px', padding: '1px 5px',
     verticalAlign: 'middle',
   }}>
     Foreign-born
@@ -114,8 +111,8 @@ const FbBadge = () => (
 
 const OriginScopeBadge = () => (
   <span style={{
-    marginLeft: '0.5rem', color: '#38bdf8', fontSize: '0.7rem',
-    background: '#13283a', borderRadius: '4px', padding: '2px 6px',
+    marginLeft: '0.5rem', color: '#2652b2', fontSize: '0.7rem',
+    background: '#e5f1ff', borderRadius: '4px', padding: '2px 6px',
     verticalAlign: 'middle', fontWeight: 600,
   }}>
     Total foreign-born population
@@ -183,10 +180,9 @@ export default function CityProfile({ selectedCities }) {
                 city: 'Massachusetts',
                 city_type: 'state',
                 fb_pct: stateProfile?.fb_pct,
-                unemployment_rate: stateProfile?.unemployment_rate,
-                median_household_income: stateProfile?.median_household_income,
-                bachelors_pct: stateProfile?.bachelors_pct,
-                homeownership_pct: stateProfile?.homeownership_pct,
+                fb_bachelors_pct: stateProfile?.fb_bachelors_pct,
+                fb_homeownership_pct: stateProfile?.fb_homeownership_pct,
+                fb_median_household_income: stateProfile?.fb_median_household_income,
                 median_income_foreign_born: stateProfile?.median_income_foreign_born,
                 year: stateProfile?.year,
               },
@@ -199,16 +195,12 @@ export default function CityProfile({ selectedCities }) {
 
       return Promise.all([
         fetchForeignBorn({ city }),
-        fetchEmploymentIncome(city),
-        fetchEducation(city),
-        fetchHomeownership(city),
+        fetchForeignBornCharacteristics(city),
         fetchCountryOfOrigin(city),
         fetchMedianIncome(city),
-      ]).then(([fb, emp, edu, own, orig, med]) => {
+      ]).then(([fb, chars, orig, med]) => {
         const fbRow  = Array.isArray(fb)  ? fb[0]  : fb
-        const empRow = Array.isArray(emp) ? emp[0] : emp
-        const eduRow = Array.isArray(edu) ? edu[0] : edu
-        const ownRow = Array.isArray(own) ? own[0] : own
+        const charRow = Array.isArray(chars) ? chars[0] : chars
         const medRow = Array.isArray(med) ? med[0] : med
 
         const { topOrigins, regions } = buildOriginBreakdowns(orig)
@@ -216,12 +208,11 @@ export default function CityProfile({ selectedCities }) {
         return {
           profile: {
             city,
-            city_type: fbRow?.city_type || 'other',
+            city_type: fbRow?.city_type || charRow?.city_type || 'other',
             fb_pct: fbRow?.fb_pct,
-            unemployment_rate: empRow?.unemployment_rate,
-            median_household_income: empRow?.median_household_income,
-            bachelors_pct: eduRow?.bachelors_pct,
-            homeownership_pct: ownRow?.homeownership_pct,
+            fb_bachelors_pct: charRow?.fb_bachelors_pct,
+            fb_homeownership_pct: charRow?.fb_homeownership_pct,
+            fb_median_household_income: charRow?.fb_median_household_income,
             median_income_foreign_born: medRow?.median_income_foreign_born,
           },
           origins: topOrigins,
@@ -248,10 +239,9 @@ export default function CityProfile({ selectedCities }) {
         setRegionOrigins(regionOrigs)
         setStateBenchmark({
           fb_pct: state?.fb_pct,
-          unemployment_rate: state?.unemployment_rate,
-          bachelors_pct: state?.bachelors_pct,
-          homeownership_pct: state?.homeownership_pct,
-          median_household_income: state?.median_household_income,
+          fb_bachelors_pct: state?.fb_bachelors_pct,
+          fb_homeownership_pct: state?.fb_homeownership_pct,
+          fb_median_household_income: state?.fb_median_household_income,
           median_income_foreign_born: state?.median_income_foreign_born,
           year: state?.year,
         })
@@ -273,16 +263,14 @@ export default function CityProfile({ selectedCities }) {
         city: p.city,
         city_type: p.city_type,
         fb_pct: p.fb_pct,
-        unemployment_rate: p.unemployment_rate,
-        bachelors_pct: p.bachelors_pct,
-        homeownership_pct: p.homeownership_pct,
-        median_household_income: p.median_household_income,
+        fb_bachelors_pct: p.fb_bachelors_pct,
+        fb_homeownership_pct: p.fb_homeownership_pct,
+        fb_median_household_income: p.fb_median_household_income,
         median_income_foreign_born: p.median_income_foreign_born,
         ma_state_fb_pct: stateBenchmark?.fb_pct,
-        ma_state_unemployment_rate: stateBenchmark?.unemployment_rate,
-        ma_state_bachelors_pct: stateBenchmark?.bachelors_pct,
-        ma_state_homeownership_pct: stateBenchmark?.homeownership_pct,
-        ma_state_median_household_income: stateBenchmark?.median_household_income,
+        ma_state_fb_bachelors_pct: stateBenchmark?.fb_bachelors_pct,
+        ma_state_fb_homeownership_pct: stateBenchmark?.fb_homeownership_pct,
+        ma_state_fb_median_household_income: stateBenchmark?.fb_median_household_income,
         ma_state_median_income_foreign_born: stateBenchmark?.median_income_foreign_born,
       }))
 
@@ -306,7 +294,7 @@ export default function CityProfile({ selectedCities }) {
   }, [profiles, origins, stateBenchmark])
 
   if (loading) return <div className="placeholder"><p>Loading...</p></div>
-  if (error) return <div className="placeholder"><p style={{ color: '#f87171' }}>{error}</p></div>
+  if (error) return <div className="placeholder"><p style={{ color: '#bf0f0f' }}>{error}</p></div>
   if (profiles.length === 0) return <div className="placeholder"><p>No profile data available.</p></div>
 
   const isSingle = profiles.length === 1
@@ -317,7 +305,7 @@ export default function CityProfile({ selectedCities }) {
       {isSingle ? (
         <>
           <h2 style={{ marginBottom: '0.25rem' }}>{profile.city}</h2>
-          <p style={{ color: '#aaa', marginBottom: '1.5rem', textTransform: 'capitalize' }}>
+          <p style={{ color: '#6f6f6f', marginBottom: '1.5rem', textTransform: 'capitalize' }}>
             {profile.city_type === 'state' ? 'Statewide' : `${profile.city_type} City`}
           </p>
 
@@ -331,30 +319,31 @@ export default function CityProfile({ selectedCities }) {
                 <div
                   key={s.key}
                   style={{
-                    background: '#1e1e2e',
+                    background: '#fcf4ff',
+                    border: '1px solid #edd4f5',
                     borderRadius: '8px',
                     padding: '1rem',
                     minWidth: '160px',
                     flex: '1',
                   }}
                 >
-                  <div style={{ fontSize: '0.75rem', color: '#aaa' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6f6f6f' }}>
                     {s.label}
                     {s.fbOnly && <FbBadge />}
                   </div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#fff' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#361247' }}>
                     {formatVal(val, s.format)}
                   </div>
                   {stVal != null && (
                     <div style={{
-                      fontSize: '0.9rem', color: '#888', marginTop: '0.5rem',
-                      borderTop: '1px solid #2a2a3a', paddingTop: '0.5rem',
+                      fontSize: '0.9rem', color: '#6f6f6f', marginTop: '0.5rem',
+                      borderTop: '1px solid #edd4f5', paddingTop: '0.5rem',
                     }}>
                       <span>MA Statewide: {formatVal(stVal, s.format)}</span>
                       {diff != null && (
                         <span style={{
                           marginLeft: '0.5rem',
-                          color: diff >= 0 ? '#4ade80' : '#f87171',
+                          color: diff >= 0 ? '#68ac4d' : '#bf0f0f',
                           fontWeight: 600,
                         }}>
                           {s.format === '$'
@@ -381,17 +370,17 @@ export default function CityProfile({ selectedCities }) {
                   layout="vertical"
                   margin={{ top: 8, right: 24, left: 190, bottom: 8 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis type="number" tick={{ fill: '#aaa' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e6e6e6" />
+                  <XAxis type="number" tick={{ fill: '#6f6f6f' }} />
                   <YAxis dataKey="country" type="category" tick={<WrappedCountryTick />} width={185} interval={0} />
                   <Tooltip
                     formatter={(val, name, props) => [
                       `${Number(val).toLocaleString()} (${props.payload.share.toFixed(1)}%)`,
                       'Estimate',
                     ]}
-                    contentStyle={{ background: '#1e1e2e', border: '1px solid #444', color: '#fff' }}
+                    contentStyle={{ background: '#ffffff', border: '1px solid #dadada', color: '#373737' }}
                   />
-                  <Bar dataKey="estimate" fill="#4e9af1" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="estimate" fill="#732487" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </>
@@ -409,17 +398,17 @@ export default function CityProfile({ selectedCities }) {
                   layout="vertical"
                   margin={{ top: 8, right: 24, left: 130, bottom: 8 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis type="number" tick={{ fill: '#aaa' }} tickFormatter={(v) => v.toLocaleString()} />
-                  <YAxis dataKey="region" type="category" tick={{ fill: '#aaa' }} width={160} interval={0} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e6e6e6" />
+                  <XAxis type="number" tick={{ fill: '#6f6f6f' }} tickFormatter={(v) => v.toLocaleString()} />
+                  <YAxis dataKey="region" type="category" tick={{ fill: '#6f6f6f' }} width={160} interval={0} />
                   <Tooltip
                     formatter={(val, name, props) => [
                       `${Number(val).toLocaleString()} (${props.payload.share.toFixed(1)}%)`,
                       'Estimate',
                     ]}
-                    contentStyle={{ background: '#1e1e2e', border: '1px solid #444', color: '#fff' }}
+                    contentStyle={{ background: '#ffffff', border: '1px solid #dadada', color: '#373737' }}
                   />
-                  <Bar dataKey="estimate" fill="#a78bfa" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="estimate" fill="#4f1c59" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </>
@@ -428,20 +417,20 @@ export default function CityProfile({ selectedCities }) {
       ) : (
         <>
           <h2 style={{ marginBottom: '0.25rem' }}>City Comparison</h2>
-          <p style={{ color: '#aaa', marginBottom: '1.5rem' }}>
+          <p style={{ color: '#6f6f6f', marginBottom: '1.5rem' }}>
             {profiles.map((p) => p.city).join(' vs ')}
           </p>
 
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
             {profiles.map((p, i) => (
-              <span key={p.city} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#ccc', fontSize: '0.85rem' }}>
+              <span key={p.city} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#454545', fontSize: '0.85rem' }}>
                 <span style={{ width: 12, height: 12, borderRadius: 3, background: CITY_COLORS[i % CITY_COLORS.length], display: 'inline-block' }} />
                 {p.city}
               </span>
             ))}
             {stateBenchmark && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#888', fontSize: '0.85rem' }}>
-                <span style={{ width: 12, height: 2, background: '#888', display: 'inline-block', alignSelf: 'center' }} />
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#6f6f6f', fontSize: '0.85rem' }}>
+                <span style={{ width: 12, height: 2, background: '#6f6f6f', display: 'inline-block', alignSelf: 'center' }} />
                 MA Statewide
               </span>
             )}
@@ -450,32 +439,32 @@ export default function CityProfile({ selectedCities }) {
           <div style={{ overflowX: 'auto', marginBottom: '2rem' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
               <thead>
-                <tr style={{ borderBottom: '2px solid #2a2a3a' }}>
-                  <th style={{ textAlign: 'left', padding: '0.75rem 0.5rem', color: '#aaa' }}>Metric</th>
+                <tr style={{ borderBottom: '2px solid #dadada' }}>
+                  <th style={{ textAlign: 'left', padding: '0.75rem 0.5rem', color: '#6f6f6f' }}>Metric</th>
                   {profiles.map((p, i) => (
                     <th key={p.city} style={{ textAlign: 'right', padding: '0.75rem 0.5rem', color: CITY_COLORS[i % CITY_COLORS.length] }}>
                       {p.city}
                     </th>
                   ))}
                   {stateBenchmark && (
-                    <th style={{ textAlign: 'right', padding: '0.75rem 0.5rem', color: '#888' }}>MA Statewide</th>
+                    <th style={{ textAlign: 'right', padding: '0.75rem 0.5rem', color: '#6f6f6f' }}>MA Statewide</th>
                   )}
                 </tr>
               </thead>
               <tbody>
                 {STAT_KEYS.map((s) => (
-                  <tr key={s.key} style={{ borderBottom: '1px solid #1e1e2e' }}>
-                    <td style={{ padding: '0.6rem 0.5rem', color: '#ccc' }}>
+                  <tr key={s.key} style={{ borderBottom: '1px solid #f2f2f2' }}>
+                    <td style={{ padding: '0.6rem 0.5rem', color: '#454545' }}>
                       {s.label}
                       {s.fbOnly && <FbBadge />}
                     </td>
                     {profiles.map((p) => (
-                      <td key={p.city} style={{ textAlign: 'right', padding: '0.6rem 0.5rem', color: '#fff', fontWeight: 600 }}>
+                      <td key={p.city} style={{ textAlign: 'right', padding: '0.6rem 0.5rem', color: '#373737', fontWeight: 600 }}>
                         {formatVal(p[s.key], s.format)}
                       </td>
                     ))}
                     {stateBenchmark && (
-                      <td style={{ textAlign: 'right', padding: '0.6rem 0.5rem', color: '#888' }}>
+                      <td style={{ textAlign: 'right', padding: '0.6rem 0.5rem', color: '#6f6f6f' }}>
                         {formatVal(stateBenchmark[s.key], s.format)}
                       </td>
                     )}
@@ -497,8 +486,8 @@ export default function CityProfile({ selectedCities }) {
                 </h3>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid #2a2a3a' }}>
-                      <th style={{ textAlign: 'left', padding: '0.75rem 0.5rem', color: '#aaa' }}>Region</th>
+                    <tr style={{ borderBottom: '2px solid #dadada' }}>
+                      <th style={{ textAlign: 'left', padding: '0.75rem 0.5rem', color: '#6f6f6f' }}>Region</th>
                       {profiles.map((p, i) => (
                         <th key={p.city} style={{ textAlign: 'right', padding: '0.75rem 0.5rem', color: CITY_COLORS[i % CITY_COLORS.length] }}>
                           {p.city}
@@ -508,12 +497,12 @@ export default function CityProfile({ selectedCities }) {
                   </thead>
                   <tbody>
                     {allRegions.map((reg) => (
-                      <tr key={reg} style={{ borderBottom: '1px solid #1e1e2e' }}>
-                        <td style={{ padding: '0.6rem 0.5rem', color: '#ccc' }}>{reg}</td>
+                      <tr key={reg} style={{ borderBottom: '1px solid #f2f2f2' }}>
+                        <td style={{ padding: '0.6rem 0.5rem', color: '#454545' }}>{reg}</td>
                         {profiles.map((p) => {
                           const row = (regionOrigins[p.city] || []).find((r) => r.region === reg) || null
                           return (
-                            <td key={p.city} style={{ textAlign: 'right', padding: '0.6rem 0.5rem', color: '#fff' }}>
+                            <td key={p.city} style={{ textAlign: 'right', padding: '0.6rem 0.5rem', color: '#373737' }}>
                               {row?.share == null ? 'N/A' : `${row.share.toFixed(1)}%`}
                             </td>
                           )
@@ -539,25 +528,25 @@ export default function CityProfile({ selectedCities }) {
                 </h3>
                 <ResponsiveContainer width="100%" height={chartData.length * 40 + 40}>
                   <BarChart data={chartData} layout="vertical" margin={{ left: 110, right: 80 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" horizontal={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e6e6e6" horizontal={false} />
                     <XAxis
                       type="number"
-                      tick={{ fill: '#888', fontSize: 11 }}
+                      tick={{ fill: '#6f6f6f', fontSize: 11 }}
                       tickFormatter={(v) => s.format === '$' ? `$${v.toLocaleString()}` : `${v.toFixed(1)}%`}
                     />
-                    <YAxis dataKey="city" type="category" tick={{ fill: '#ccc', fontSize: 12 }} width={105} />
+                    <YAxis dataKey="city" type="category" tick={{ fill: '#454545', fontSize: 12 }} width={105} />
                     <Tooltip
-                      contentStyle={{ background: '#1e1f2e', border: '1px solid #2a2a3a', borderRadius: 6 }}
+                      contentStyle={{ background: '#ffffff', border: '1px solid #dadada', borderRadius: 6 }}
                       formatter={(v) => [formatVal(v, s.format), s.label]}
                     />
                     {stateBenchmark?.[s.key] != null && (
-                      <CartesianGrid horizontalPoints={[]} verticalPoints={[stateBenchmark[s.key]]} stroke="#888" strokeDasharray="6 3" />
+                      <CartesianGrid horizontalPoints={[]} verticalPoints={[stateBenchmark[s.key]]} stroke="#6f6f6f" strokeDasharray="6 3" />
                     )}
                     <Bar
                       dataKey="value"
                       radius={[0, 4, 4, 0]}
-                      label={{ position: 'right', fill: '#aaa', fontSize: 11, formatter: (v) => formatVal(v, s.format) }}
-                      shape={(props) => <rect {...props} fill={props.fill || '#4e9af1'} rx={3} />}
+                      label={{ position: 'right', fill: '#6f6f6f', fontSize: 11, formatter: (v) => formatVal(v, s.format) }}
+                      shape={(props) => <rect {...props} fill={props.fill || '#732487'} rx={3} />}
                     />
                   </BarChart>
                 </ResponsiveContainer>

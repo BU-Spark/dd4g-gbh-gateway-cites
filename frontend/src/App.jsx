@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
+import gbhMark from "./assets/gbh-mark.svg";
 import PerCapitaComparison from "./components/PerCapitaComparison";
 import CityProfile from "./components/CityProfile";
 import CountryOrigins from "./components/CountryOrigins";
-import MapView from "./components/MapView";
 import TrendsView from "./components/TrendsView";
 import ChatBot from "./components/ChatBot";
+import InstructionsModal from "./components/InstructionsModal";
 import {
   fetchCities,
-  fetchForeignBorn,
-  fetchMapStats,
-  fetchStatewideForeignBorn,
   prefetchDashboardData,
 } from "./api/cities";
 
@@ -55,45 +53,15 @@ const GATEWAY_CITIES = new Set([
   "Worcester",
 ]);
 
-const downloadCSV = (filename, rows) => {
-  if (!rows || !rows.length) return;
-
-  const headers = Object.keys(rows[0]);
-  const csv = [
-    headers.join(","),
-    ...rows.map((row) =>
-      headers
-        .map((header) => {
-          const value = row[header] ?? "";
-          const escaped = String(value).replace(/"/g, '""');
-          return `"${escaped}"`;
-        })
-        .join(","),
-    ),
-  ].join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.setAttribute("download", filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
-
 export default function App() {
   const [activeTab, setActiveTab] = useState("Overview");
   const [cities, setCities] = useState([]);
   const [selectedCities, setSelectedCities] = useState([]);
-  const [foreignBorn, setForeignBorn] = useState([]);
-  const [mapStats, setMapStats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cityQuery, setCityQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
-  const [topN, setTopN] = useState(20);
-  const [gatewayOnly, setGatewayOnly] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(true);
+  const [placeTypeFilter, setPlaceTypeFilter] = useState("all");
 
   useEffect(() => {
     fetchCities()
@@ -132,48 +100,40 @@ export default function App() {
     });
   }, []);
 
-  useEffect(() => {
-    fetchMapStats()
-      .then((data) => setMapStats(normalizeRows(data)))
-      .catch((err) => console.error("Failed to load map stats:", err));
-  }, []);
-
-  useEffect(() => {
-  if (selectedCities.length === 0) {
-    fetchForeignBorn()
-      .then((cityData) => setForeignBorn(normalizeRows(cityData)))
-      .catch((err) => console.error("Failed to load foreign born:", err));
-
-  } else if (selectedCities.includes("Statewide")) {
-    const otherCities = selectedCities.filter((c) => c !== "Statewide");
-    Promise.all([
-      fetchStatewideForeignBorn(),
-      fetchForeignBorn(),
-    ])
-      .then(([stateData, cityData]) => {
-        const maxYear = Math.max(...stateData.map((x) => x.year));
-        const stateRow = stateData
-          .filter((d) => d.year === maxYear)
-          .map((d) => ({ ...d, city: "Massachusetts (Statewide)", city_type: "state" }));
-        const selectedRows = cityData.filter((d) => otherCities.includes(d.city));
-        setForeignBorn(normalizeRows([...stateRow, ...selectedRows]));
-      })
-      .catch((err) => console.error("Failed to load foreign born:", err));
-
-  } else {
-    fetchForeignBorn()
-      .then((cityData) => {
-        const selectedRows = cityData.filter((d) => selectedCities.includes(d.city));
-        setForeignBorn(normalizeRows(selectedRows));
-      })
-      .catch((err) => console.error("Failed to load foreign born for cities:", err));
-  }
-}, [selectedCities]);
-
   const toggleCity = (city) => {
     setSelectedCities((prev) =>
       prev.includes(city) ? prev.filter((c) => c !== city) : [...prev, city],
     );
+  };
+
+  const gatewayCityNames = useMemo(
+    () =>
+      cities
+        .filter((c) => c.city_type === "gateway")
+        .map((c) => c.city)
+        .sort((a, b) => a.localeCompare(b)),
+    [cities],
+  );
+
+  const gatewaySelectionActive =
+    placeTypeFilter === "gateway" &&
+    gatewayCityNames.length > 0 &&
+    selectedCities.length === gatewayCityNames.length &&
+    gatewayCityNames.every((city) => selectedCities.includes(city));
+
+  const togglePlaceType = (type) => {
+    if (type === "gateway") {
+      if (gatewaySelectionActive) {
+        setPlaceTypeFilter("all");
+        setSelectedCities([]);
+        return;
+      }
+      setPlaceTypeFilter("gateway");
+      setSelectedCities(gatewayCityNames);
+      return;
+    }
+
+    setPlaceTypeFilter((current) => (current === type ? "all" : type));
   };
 
   const filteredCities = useMemo(() => {
@@ -186,64 +146,20 @@ export default function App() {
       return a.city_type === "gateway" ? -1 : 1;
     });
 
-    if (!q) return sorted;
-    return sorted.filter((c) => c.city.toLowerCase().includes(q));
-  }, [cities, cityQuery]);
+    const typed = placeTypeFilter === "all"
+      ? sorted
+      : sorted.filter((c) => c.city_type === placeTypeFilter);
 
-  const gatewayCitySet = useMemo(() => {
-    return new Set(
-      cities.filter((c) => c.city_type === "gateway").map((c) => c.city),
-    );
-  }, [cities]);
-
-  const sorted = [...foreignBorn]
-  .map((d) => ({
-    ...d,
-    city_type: d.city_type === "state"
-      ? "state"
-      : gatewayCitySet.has(d.city) ? "gateway" : "other",
-  }))
-  .sort((a, b) => {
-    if (a.city_type === "state") return -1;
-    if (b.city_type === "state") return 1;
-    return (b.fb_pct ?? 0) - (a.fb_pct ?? 0);
-  });
-
-  const overviewData = (
-    gatewayOnly ? sorted.filter((d) => gatewayCitySet.has(d.city)) : sorted
-  ).slice(0, topN);
+    if (!q) return typed;
+    return typed.filter((c) => c.city.toLowerCase().includes(q));
+  }, [cities, cityQuery, placeTypeFilter]);
 
   const handleDownload = () => {
-    if (activeTab === "Foreign Born") {
-      const rows = overviewData.map((d) => ({
-        city: d.city,
-        city_type: d.city_type,
-        foreign_born_pct: d.fb_pct,
-        year: d.year ?? "latest",
-      }));
-
-      downloadCSV("overview_foreign_born.csv", rows);
-      return;
-    }
-
-    if (activeTab === "Map") {
-      const rows = mapStats.map((d) => ({
-        city: d.city,
-        city_type: d.city_type,
-        ...d,
-      }));
-
-      downloadCSV("map_data.csv", rows);
-      return;
-    }
-
     window.dispatchEvent(
       new CustomEvent("download-active-tab", {
         detail: {
           tab: activeTab,
           selectedCities,
-          topN,
-          gatewayOnly,
         },
       }),
     );
@@ -254,17 +170,39 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>Massachusetts Immigration Data</h1>
-        <p>ACS 5-Year Estimates · Massachusetts · 2024</p>
+        <img className="header-mark" src={gbhMark} alt="GBH" />
+        <div>
+          <h1>Massachusetts Immigration Data</h1>
+          <p>ACS 5-Year Estimates · Massachusetts · 2020-2024</p>
+        </div>
       </header>
 
       <div className="layout">
         <aside className="sidebar">
           <h3>Filter Cities</h3>
+          <p className="type-legend">
+            These colors match the dots in the search list.
+          </p>
 
           <div className="city-type-group">
-            <p className="type-label gateway">● Gateway Cities</p>
-            <p className="type-label other">● Other Municipalities</p>
+            <button
+              type="button"
+              className={`type-filter-btn gateway ${gatewaySelectionActive ? "active" : ""}`}
+              aria-pressed={gatewaySelectionActive}
+              onClick={() => togglePlaceType("gateway")}
+            >
+              <span className="search-dot gateway">●</span>
+              Gateway Cities
+            </button>
+            <button
+              type="button"
+              className={`type-filter-btn other ${placeTypeFilter === "other" ? "active" : ""}`}
+              aria-pressed={placeTypeFilter === "other"}
+              onClick={() => togglePlaceType("other")}
+            >
+              <span className="search-dot other">●</span>
+              Other Municipalities
+            </button>
           </div>
 
           <div className="city-search-wrap">
@@ -351,13 +289,18 @@ export default function App() {
         <main className="main">
           <div className="tabs-row">
             <div className="tabs">
+              <button
+                type="button"
+                className="tab-btn"
+                onClick={() => setShowInstructions(true)}
+              >
+                Instructions
+              </button>
               {[
                 "Overview",
-                "Foreign Born",
                 "City Metrics",
                 "Origins",
                 "Trends",
-                "Map",
               ].map((tab) => (
                 <button
                   key={tab}
@@ -378,67 +321,6 @@ export default function App() {
             </button>
           </div>
 
-          {activeTab === "Foreign Born" && (
-            <>
-              <h2>
-                Foreign-Born % of Population
-                {selectedCities.length > 0
-                  ? ` — ${selectedCities.join(", ")}`
-                  : " — All Cities"}
-              </h2>
-
-              <div className="overview-controls">
-                <div className="overview-control-group">
-                  <label htmlFor="topNSelect">Show</label>
-                  <select
-                    id="topNSelect"
-                    className="overview-select"
-                    value={topN}
-                    onChange={(e) => setTopN(Number(e.target.value))}
-                  >
-                    <option value={10}>Top 10</option>
-                    <option value={15}>Top 15</option>
-                    <option value={20}>Top 20</option>
-                    <option value={999}>All</option>
-                  </select>
-                </div>
-
-                <button
-                  className={`overview-toggle-btn ${gatewayOnly ? "active" : ""}`}
-                  onClick={() => setGatewayOnly((prev) => !prev)}
-                >
-                  {gatewayOnly ? "Showing Gateway Only" : "Show Gateway Only"}
-                </button>
-              </div>
-
-              <p style={{ color: "#888", marginBottom: "10px" }}>
-                Showing {overviewData.length} rows
-              </p>
-
-              <div className="bar-chart">
-                {overviewData.map((d) => (
-                  <div
-                    key={`${d.city}-${d.year ?? "latest"}`}
-                    className="bar-row"
-                  >
-                    <span className="bar-label">{d.city}</span>
-                    <div className="bar-track">
-                      <div
-                        className={`bar-fill ${d.city_type}`}
-                        style={{
-                          width: `${(Math.min(d.fb_pct ?? 0, 60) / 60) * 100}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="bar-value">
-                      {d.fb_pct?.toFixed(1) ?? "N/A"}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
           {activeTab === "City Metrics" && (
             <PerCapitaComparison
               selectedCities={selectedCities}
@@ -457,31 +339,15 @@ export default function App() {
             />
           )}
 
-          {activeTab === "Map" && (
-            <>
-              <h2>Gateway Cities Map</h2>
-              <p
-                style={{
-                  marginBottom: "12px",
-                  color: "#888",
-                  fontSize: "0.9rem",
-                }}
-              >
-                Loaded map rows: {mapStats.length}
-              </p>
-              <MapView
-                stats={mapStats}
-                selectedCities={selectedCities}
-                onCityClick={toggleCity}
-              />
-            </>
-          )}
-
           {activeTab === "Trends" && (
             <TrendsView selectedCities={selectedCities} />
           )}
         </main>
       </div>
+
+      {showInstructions && (
+        <InstructionsModal onClose={() => setShowInstructions(false)} />
+      )}
 
       <ChatBot />
 

@@ -373,9 +373,10 @@ def _greatest_fb_growth(limit: int = 5) -> Dict[str, Any]:
   try:
     import pandas as pd
     from pathlib import Path
-    fb_df = pd.read_parquet(
+    from .place_names import apply_place_aliases
+    fb_df = apply_place_aliases(pd.read_parquet(
       Path(__file__).parent.parent.parent / "data" / "processed" / "foreign_born_core.parquet"
-    )
+    ))
     fb_df = fb_df[fb_df["city"].isin(gateway)] if gateway else fb_df
   except Exception:
     fb_df = None
@@ -624,8 +625,10 @@ def _fastest_growing_subgroups(city: str = None, limit: int = 10) -> Dict[str, A
   import pandas as pd
   from pathlib import Path
 
+  from .place_names import apply_place_aliases
+
   PROC = Path(__file__).parent.parent.parent / "data" / "processed"
-  df = pd.read_parquet(PROC / "country_of_origin.parquet")
+  df = apply_place_aliases(pd.read_parquet(PROC / "country_of_origin.parquet"))
 
   # Filter out region labels
   df = df[

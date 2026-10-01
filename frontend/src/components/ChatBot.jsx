@@ -254,8 +254,9 @@ export default function ChatBot() {
                 style={{
                   ...styles.msg,
                   alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                  background: m.role === "user" ? "#1a2540" : "#1e1f2e",
-                  borderColor: m.role === "user" ? "#4e9af1" : "#2a2a3a",
+                  background: m.role === "user" ? "#edd4f5" : "#f2f2f2",
+                  borderColor: m.role === "user" ? "#b870d6" : "#dadada",
+                  color: "#373737",
                 }}
               >
                 {m.text.split("\n").map((line, li) => (
@@ -275,20 +276,20 @@ export default function ChatBot() {
                     <div style={styles.chartBox}>
                       <ResponsiveContainer width="100%" height={160}>
                         <LineChart data={m.chart.data}>
-                          <XAxis dataKey="year" stroke="#9aa4b2" />
-                          <YAxis stroke="#9aa4b2" />
+                          <XAxis dataKey="year" stroke="#6f6f6f" />
+                          <YAxis stroke="#6f6f6f" />
                           <Tooltip
                             contentStyle={{
-                              background: "#13141f",
-                              border: "1px solid #2a2a3a",
+                              background: "#ffffff",
+                              border: "1px solid #dadada",
                               borderRadius: 8,
-                              color: "#e0e0e0",
+                              color: "#373737",
                             }}
                           />
                           <Line
                             type="monotone"
                             dataKey="value"
-                            stroke="#4e9af1"
+                            stroke="#732487"
                             strokeWidth={2}
                             dot={false}
                           />
@@ -303,12 +304,13 @@ export default function ChatBot() {
               <div
                 style={{
                   ...styles.msg,
-                  background: "#1e1f2e",
-                  borderColor: "#2a2a3a",
+                  background: "#f2f2f2",
+                  borderColor: "#dadada",
+                  color: "#373737",
                   alignSelf: "flex-start",
                 }}
               >
-                <em style={{ color: "#888" }}>Thinking…</em>
+                <em style={{ color: "#6f6f6f" }}>Thinking…</em>
               </div>
             )}
             <div ref={endRef} />
@@ -369,23 +371,23 @@ const styles = {
     alignItems: "center",
     gap: 8,
     padding: "10px 14px",
-    background: "#1a1b2e",
-    border: "1px solid #2a2a3a",
-    color: "#ccc",
+    background: "#4f1c59",
+    border: "1px solid #361247",
+    color: "#ffffff",
     fontSize: "0.85rem",
     fontWeight: 600,
     cursor: "pointer",
     userSelect: "none",
   },
   headerIcon: { fontSize: "1rem" },
-  headerTitle: { flex: 1, textAlign: "left", color: "#e0e0e0" },
-  headerToggle: { fontSize: "0.65rem", color: "#888" },
-  closeX: { fontSize: "1rem", color: "#888", marginLeft: 4 },
+  headerTitle: { flex: 1, textAlign: "left", color: "#ffffff" },
+  headerToggle: { fontSize: "0.65rem", color: "#edd4f5" },
+  closeX: { fontSize: "1rem", color: "#edd4f5", marginLeft: 4 },
   body: {
     display: "flex",
     flexDirection: "column",
-    background: "#13141f",
-    border: "1px solid #2a2a3a",
+    background: "#ffffff",
+    border: "1px solid #dadada",
     borderTop: "none",
     borderRadius: "0 0 10px 10px",
     height: 360,
@@ -400,7 +402,7 @@ const styles = {
     gap: 8,
   },
   welcome: {
-    color: "#999",
+    color: "#6f6f6f",
     fontSize: "0.82rem",
     textAlign: "center",
     marginTop: 40,
@@ -408,7 +410,7 @@ const styles = {
   },
   examples: {
     marginTop: 12,
-    color: "#6e7a94",
+    color: "#732487",
     fontSize: "0.78rem",
   },
   msg: {
@@ -417,7 +419,7 @@ const styles = {
     borderRadius: 8,
     border: "1px solid",
     fontSize: "0.82rem",
-    color: "#ddd",
+    color: "#373737",
     lineHeight: 1.5,
     whiteSpace: "pre-wrap",
     wordBreak: "break-word",
@@ -427,14 +429,14 @@ const styles = {
   },
   chartTitle: {
     fontSize: "0.78rem",
-    color: "#9aa4b2",
+    color: "#6f6f6f",
     marginBottom: 6,
   },
   chartBox: {
     width: "100%",
     height: 170,
-    background: "#13141f",
-    border: "1px solid #2a2a3a",
+    background: "#fcf4ff",
+    border: "1px solid #edd4f5",
     borderRadius: 10,
     padding: 8,
   },
@@ -442,23 +444,23 @@ const styles = {
     display: "flex",
     gap: 6,
     padding: "8px 10px",
-    borderTop: "1px solid #2a2a3a",
+    borderTop: "1px solid #dadada",
   },
   input: {
     flex: 1,
     padding: "8px 10px",
     borderRadius: 8,
-    border: "1px solid #2a2a3a",
-    background: "#1e1f2e",
-    color: "#e0e0e0",
+    border: "1px solid #c2c2c2",
+    background: "#ffffff",
+    color: "#373737",
     fontSize: "0.82rem",
     outline: "none",
   },
   sendBtn: {
     padding: "6px 12px",
     borderRadius: 8,
-    border: "1px solid #4e9af1",
-    background: "#4e9af1",
+    border: "1px solid #732487",
+    background: "#732487",
     color: "#fff",
     fontSize: "0.85rem",
     cursor: "pointer",

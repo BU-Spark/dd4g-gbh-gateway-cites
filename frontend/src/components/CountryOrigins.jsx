@@ -6,9 +6,8 @@ import {
   LineChart, Line,
 } from 'recharts'
 
-const ACCENT = '#4e9af1'
-const ACCENT2 = '#f1914e'
-const OTHER_COLOR = '#bfc4cf'
+const ACCENT = '#732487'
+const OTHER_COLOR = '#a2a2a2'
 const STATEWIDE_LABEL = 'Massachusetts Statewide Total'
 const GATEWAY_LABEL = 'Gateway Cities (Combined)'
 
@@ -23,13 +22,13 @@ const CONTINENT_ORDER = [
 ]
 
 const CONTINENT_COLORS = {
-  'Asia':          '#4e9af1',
-  'Latin America': '#f1914e',
-  'Europe':        '#a78bfa',
-  'Northern America': '#34d399',
-  'Africa':        '#fbbf24',
-  'Oceania':       '#f472b6',
-  'Other':         '#bfc4cf',
+  'Asia':          '#732487',
+  'Latin America': '#2652b2',
+  'Europe':        '#ad40d9',
+  'Northern America': '#4f1c59',
+  'Africa':        '#ea0051',
+  'Oceania':       '#2b72f6',
+  'Other':         '#a2a2a2',
 }
 
 const NON_COUNTRY_LABELS = new Set([
@@ -77,7 +76,7 @@ const wrapAxisLabel = (value, maxChars = 23, maxLines = 2) => {
 const WrappedCountryTick = ({ x, y, payload }) => {
   const lines = wrapAxisLabel(payload?.value)
   return (
-    <text x={x - 6} y={y} textAnchor="end" fill="#ccc" fontSize={11}>
+    <text x={x - 6} y={y} textAnchor="end" fill="#454545" fontSize={11}>
       {lines.map((line, index) => (
         <tspan key={line} x={x - 6} dy={index === 0 ? 0 : 13}>
           {line}
@@ -288,7 +287,158 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
     <div style={{ padding: '1rem' }}>
       <h2 style={{ marginBottom: '1rem' }}>Origins</h2>
 
-      {/* Tabs — By Country and By Region only */}
+      <section
+        style={{
+          background: '#fcf4ff',
+          border: '1px solid #edd4f5',
+          borderRadius: '12px',
+          padding: '1.25rem 1.35rem 1.1rem',
+          marginBottom: '1.75rem',
+        }}
+      >
+        <h3 style={{ fontSize: '1.35rem', margin: '0 0 0.35rem', color: '#361247' }}>
+          Search a country across cities
+        </h3>
+        <p style={{ color: '#454545', margin: '0 0 0.5rem', maxWidth: '46rem' }}>
+          Type a country, such as Cambodia. The chart ranks Massachusetts places by how many residents were born there.
+        </p>
+        <ul style={{ color: '#454545', margin: '0 0 1rem', paddingLeft: '1.15rem', maxWidth: '46rem', lineHeight: 1.45 }}>
+          <li>
+            Filter Cities on the left applies here, including places you selected on Overview or another tab.
+          </li>
+          <li>
+            With no places selected, the chart covers the state. Show Gateway Only then limits it to Gateway Cities, and Show top sets how many places appear.
+          </li>
+          <li>
+            To compare a country across Massachusetts, click × on a selected place, or click Clear all.
+          </li>
+        </ul>
+        {searchScopeCities && (
+          <p
+            style={{
+              color: '#361247',
+              background: '#ffffff',
+              border: '1px solid #b870d6',
+              borderRadius: '8px',
+              padding: '0.7rem 0.85rem',
+              margin: '0 0 1rem',
+              maxWidth: '46rem',
+            }}
+          >
+            {searchScopeCities.size === 1
+              ? `Only ${[...searchScopeCities][0]} is shown because that place is selected in Filter Cities. The selection stays when you change tabs.`
+              : `Only the ${searchScopeCities.size} places selected in Filter Cities are shown. That selection stays when you change tabs.`}
+            {' '}Remove {searchScopeCities.size === 1 ? 'that place' : 'those places'}, or click Clear all, to see this country across the state.
+          </p>
+        )}
+
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: '1 1 360px', zIndex: 20 }}>
+            <label htmlFor="country-search" style={{ color: '#361247', fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              Country of origin
+            </label>
+            <input
+              id="country-search"
+              type="text"
+              placeholder="e.g. Cambodia, Portugal, Haiti..."
+              value={countrySearch}
+              onChange={e => { setCountrySearch(e.target.value); setIsSuggestionOpen(true) }}
+              onFocus={() => setIsSuggestionOpen(true)}
+              onBlur={() => setTimeout(() => setIsSuggestionOpen(false), 100)}
+              style={{
+                width: '100%', background: '#ffffff', color: '#373737',
+                border: '1px solid #732487', borderRadius: '8px',
+                padding: '0.75rem 0.9rem', fontSize: '1.05rem',
+              }}
+            />
+            {isSuggestionOpen && suggestions.length > 0 && (
+              <ul style={{
+                position: 'absolute', top: '100%', left: 0, right: 0,
+                background: '#ffffff', border: '1px solid #c2c2c2', borderRadius: '8px',
+                margin: '4px 0 0', padding: '0.25rem 0', listStyle: 'none', zIndex: 9999,
+                boxShadow: '0 10px 30px rgba(54,18,71,0.12)',
+              }}>
+                {suggestions.map(s => (
+                  <li
+                    key={s}
+                    onMouseDown={e => { e.preventDefault(); setCountrySearch(s); setIsSuggestionOpen(false) }}
+                    style={{ padding: '0.55rem 0.85rem', cursor: 'pointer', color: '#373737', fontSize: '0.95rem' }}
+                    onMouseEnter={e => e.target.style.background = '#edd4f5'}
+                    onMouseLeave={e => e.target.style.background = 'transparent'}
+                  >
+                    {s}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="country-top-n" style={{ color: '#6f6f6f', fontSize: '0.8rem', display: 'block', marginBottom: '6px' }}>Show top</label>
+            <select
+              id="country-top-n"
+              value={topNCountry}
+              onChange={e => setTopNCountry(Number(e.target.value))}
+              style={{ background: '#ffffff', color: '#373737', border: '1px solid #c2c2c2', borderRadius: '8px', padding: '0.7rem 0.7rem', fontSize: '0.95rem' }}
+            >
+              {[10, 15, 20, 30].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setGatewayOnly(prev => !prev)}
+            style={{
+              padding: '0.7rem 0.95rem',
+              borderRadius: '8px',
+              border: gatewayOnly ? '1px solid #732487' : '1px solid #c2c2c2',
+              background: gatewayOnly ? '#732487' : '#ffffff',
+              color: gatewayOnly ? '#fff' : '#6f6f6f',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+            }}
+          >
+            {gatewayOnly ? 'Showing Gateway Only' : 'Show Gateway Only'}
+          </button>
+        </div>
+
+        {byCountrySearchData.length > 0 ? (
+          <>
+            <p style={{ color: '#6f6f6f', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+              <strong style={{ color: '#361247' }}>{byCountrySearchData[0]?.country}</strong>
+              {' '}· {searchScopeCities
+                ? (searchScopeCities.size === 1
+                  ? [...searchScopeCities][0]
+                  : `${searchScopeCities.size} selected places`)
+                : `top ${topNCountry} cities${gatewayOnly ? ' (Gateway only)' : ''}`}
+              {' '}· 2024 ACS
+            </p>
+            <ResponsiveContainer width="100%" height={byCountrySearchData.length * 32 + 40}>
+              <BarChart data={byCountrySearchData} layout="vertical" margin={{ left: 110, right: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e6e6e6" />
+                <XAxis type="number" tick={{ fill: '#6f6f6f', fontSize: 11 }} />
+                <YAxis dataKey="city" type="category" tick={{ fill: '#454545', fontSize: 11 }} width={105} />
+                <Tooltip
+                  formatter={val => [`${val.toLocaleString()}`, 'Estimate']}
+                  contentStyle={{ background: '#ffffff', border: '1px solid #dadada', color: '#373737' }}
+                  itemStyle={{ color: ACCENT }}
+                  labelStyle={{ color: '#373737' }}
+                />
+                <Bar dataKey="estimate" radius={[0, 4, 4, 0]}>
+                  {byCountrySearchData.map((row, i) => (
+                    <Cell key={i} fill={gatewayCitySet.has(row.city) ? ACCENT : OTHER_COLOR} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </>
+        ) : countrySearch.length >= 2 ? (
+          <p style={{ color: '#6f6f6f', margin: 0 }}>No matching country found. Try Cambodia, Haiti, or Portugal.</p>
+        ) : (
+          <p style={{ color: '#6f6f6f', margin: 0 }}>Start typing a country name to see the cities with the largest populations.</p>
+        )}
+      </section>
+
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         {[['by_country', 'By Country'], ['by_continent', 'By Region']].map(([val, label]) => (
           <button
@@ -297,33 +447,16 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
             style={{
               padding: '0.4rem 1rem',
               borderRadius: '6px',
-              border: 'none',
               cursor: 'pointer',
-              background: mode === val ? ACCENT : '#2a2a3d',
-              color: '#fff',
+              background: mode === val ? ACCENT : '#ffffff',
+              color: mode === val ? '#fff' : '#6f6f6f',
+              border: mode === val ? '1px solid #732487' : '1px solid #c2c2c2',
               fontWeight: mode === val ? 'bold' : 'normal',
             }}
           >
             {label}
           </button>
         ))}
-
-        {mode === 'by_country' && (
-          <button
-            onClick={() => setGatewayOnly(prev => !prev)}
-            style={{
-              padding: '0.4rem 0.9rem',
-              borderRadius: '6px',
-              border: gatewayOnly ? '1px solid #4e9af1' : '1px solid #2a2a3a',
-              background: gatewayOnly ? '#1a2540' : 'transparent',
-              color: gatewayOnly ? '#fff' : '#888',
-              cursor: 'pointer',
-              fontSize: '0.82rem',
-            }}
-          >
-            {gatewayOnly ? 'Showing Gateway Only' : 'Show Gateway Only'}
-          </button>
-        )}
       </div>
 
       {/* ── By Country ── */}
@@ -333,11 +466,11 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
           <div style={{ marginBottom: '2.5rem' }}>
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
               <div>
-                <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>Show top</label>
+                <label style={{ color: '#6f6f6f', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>Show top</label>
                 <select
                   value={topN}
                   onChange={e => setTopN(Number(e.target.value))}
-                  style={{ background: '#1e1e2e', color: '#fff', border: '1px solid #444', borderRadius: '6px', padding: '0.35rem 0.6rem' }}
+                  style={{ background: '#ffffff', color: '#373737', border: '1px solid #c2c2c2', borderRadius: '6px', padding: '0.35rem 0.6rem' }}
                 >
                   {[10, 15, 20, 30].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
@@ -346,11 +479,11 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
               {/* City picker — only shows when multiple cities are selected */}
               {selectedCities.filter(c => c !== 'Statewide').length > 1 && (
                 <div>
-                  <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>City</label>
+                  <label style={{ color: '#6f6f6f', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>City</label>
                   <select
                     value={chartCity || effectiveSelectedCity}
                     onChange={e => setChartCity(e.target.value)}
-                    style={{ background: '#1e1e2e', color: '#fff', border: '1px solid #444', borderRadius: '6px', padding: '0.35rem 0.6rem' }}
+                    style={{ background: '#ffffff', color: '#373737', border: '1px solid #c2c2c2', borderRadius: '6px', padding: '0.35rem 0.6rem' }}
                   >
                     {[STATEWIDE_LABEL, ...selectedCities.filter(c => c !== 'Statewide')].map(c => (
                       <option key={c} value={c}>{c === STATEWIDE_LABEL ? 'MA Statewide' : c}</option>
@@ -360,125 +493,27 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
               )}
             </div>
 
-            <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
-              Top {topN} countries of origin · <strong style={{ color: '#fff' }}>{effectiveChartCity === STATEWIDE_LABEL ? 'MA Statewide' : effectiveChartCity}</strong> · 2024 ACS
+            <p style={{ color: '#6f6f6f', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+              Top {topN} countries of origin · <strong style={{ color: '#361247' }}>{effectiveChartCity === STATEWIDE_LABEL ? 'MA Statewide' : effectiveChartCity}</strong> · 2024 ACS
             </p>
 
             <ResponsiveContainer width="100%" height={topN * 28 + 40}>
               <BarChart data={byCountryChartData} layout="vertical" margin={{ left: 210, right: 60 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis type="number" tick={{ fill: '#aaa', fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e6e6e6" />
+                <XAxis type="number" tick={{ fill: '#6f6f6f', fontSize: 11 }} />
                 <YAxis dataKey="country" type="category" tick={<WrappedCountryTick />} width={205} interval={0} />
                 <Tooltip
                   formatter={(val, name, props) => [
                     `${val.toLocaleString()} (${props.payload.share.toFixed(1)}% of FB pop)`,
                     'Estimate',
                   ]}
-                  contentStyle={{ background: '#1e1e2e', border: '1px solid #444', color: '#fff' }}
+                  contentStyle={{ background: '#ffffff', border: '1px solid #dadada', color: '#373737' }}
                   itemStyle={{ color: ACCENT }}
-                  labelStyle={{ color: '#fff' }}
+                  labelStyle={{ color: '#373737' }}
                 />
-                <Bar dataKey="estimate" radius={[0, 4, 4, 0]}>
-                  {byCountryChartData.map((_, i) => (
-                    <Cell key={i} fill={i === 0 ? ACCENT2 : ACCENT} />
-                  ))}
-                </Bar>
+                <Bar dataKey="estimate" fill={ACCENT} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </div>
-
-          {/* Search a country across cities */}
-          <div style={{ borderTop: '1px solid #2a2a3a', paddingTop: '1.5rem' }}>
-            <h3 style={{ fontSize: '1rem', marginBottom: '0.75rem', color: '#ccc' }}>
-              Search a country across cities
-              {searchScopeCities && (
-                <span style={{ fontSize: '0.75rem', color: '#888', fontWeight: 'normal', marginLeft: '0.5rem' }}>
-                  · filtered to {[...searchScopeCities].join(', ')}
-                </span>
-              )}
-            </h3>
-
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', marginBottom: '1rem', flexWrap: 'wrap' }}>
-              <div style={{ position: 'relative', maxWidth: '360px', flex: '1 1 320px', zIndex: 20 }}>
-                <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
-                  Country of origin
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Cambodia, Portugal, Haiti..."
-                  value={countrySearch}
-                  onChange={e => { setCountrySearch(e.target.value); setIsSuggestionOpen(true) }}
-                  onFocus={() => setIsSuggestionOpen(true)}
-                  onBlur={() => setTimeout(() => setIsSuggestionOpen(false), 100)}
-                  style={{
-                    width: '100%', background: '#1e1e2e', color: '#fff',
-                    border: '1px solid #444', borderRadius: '6px',
-                    padding: '0.4rem 0.6rem', fontSize: '0.9rem',
-                  }}
-                />
-                {isSuggestionOpen && suggestions.length > 0 && (
-                  <ul style={{
-                    position: 'absolute', top: '100%', left: 0, right: 0,
-                    background: '#2a2a3d', border: '1px solid #444', borderRadius: '6px',
-                    margin: 0, padding: '0.25rem 0', listStyle: 'none', zIndex: 9999,
-                  }}>
-                    {suggestions.map(s => (
-                      <li
-                        key={s}
-                        onMouseDown={e => { e.preventDefault(); setCountrySearch(s); setIsSuggestionOpen(false) }}
-                        style={{ padding: '0.35rem 0.75rem', cursor: 'pointer', color: '#ccc', fontSize: '0.85rem' }}
-                        onMouseEnter={e => e.target.style.background = '#3a3a5c'}
-                        onMouseLeave={e => e.target.style.background = 'transparent'}
-                      >
-                        {s}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div>
-                <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>Show top</label>
-                <select
-                  value={topNCountry}
-                  onChange={e => setTopNCountry(Number(e.target.value))}
-                  style={{ background: '#1e1e2e', color: '#fff', border: '1px solid #444', borderRadius: '6px', padding: '0.35rem 0.6rem' }}
-                >
-                  {[10, 15, 20, 30].map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {byCountrySearchData.length > 0 ? (
-              <>
-                <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                  <strong style={{ color: '#fff' }}>{byCountrySearchData[0]?.country}</strong>
-                  {' '}· top {topNCountry} cities{gatewayOnly ? ' (Gateway only)' : ''} · 2024 ACS
-                </p>
-                <ResponsiveContainer width="100%" height={byCountrySearchData.length * 32 + 40}>
-                  <BarChart data={byCountrySearchData} layout="vertical" margin={{ left: 110, right: 60 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis type="number" tick={{ fill: '#aaa', fontSize: 11 }} />
-                    <YAxis dataKey="city" type="category" tick={{ fill: '#ccc', fontSize: 11 }} width={105} />
-                    <Tooltip
-                      formatter={val => [`${val.toLocaleString()}`, 'Estimate']}
-                      contentStyle={{ background: '#1e1e2e', border: '1px solid #444', color: '#fff' }}
-                      itemStyle={{ color: ACCENT }}
-                      labelStyle={{ color: '#fff' }}
-                    />
-                    <Bar dataKey="estimate" radius={[0, 4, 4, 0]}>
-                      {byCountrySearchData.map((row, i) => (
-                        <Cell key={i} fill={i === 0 ? ACCENT2 : (gatewayCitySet.has(row.city) ? ACCENT : OTHER_COLOR)} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </>
-            ) : countrySearch.length >= 2 ? (
-              <p style={{ color: '#aaa' }}>No matching country found. Try "Cambodia", "Haiti", or "Portugal".</p>
-            ) : (
-              <p style={{ color: '#555' }}>Start typing a country name above.</p>
-            )}
           </div>
         </>
       )}
@@ -489,11 +524,11 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
             {selectedCities.filter(c => c !== 'Statewide').length > 1 && (
               <div>
-                <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>City</label>
+                <label style={{ color: '#6f6f6f', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>City</label>
                 <select
                   value={chartCity || effectiveSelectedCity}
                   onChange={e => setChartCity(e.target.value)}
-                  style={{ background: '#1e1e2e', color: '#fff', border: '1px solid #444', borderRadius: '6px', padding: '0.35rem 0.6rem' }}
+                  style={{ background: '#ffffff', color: '#373737', border: '1px solid #c2c2c2', borderRadius: '6px', padding: '0.35rem 0.6rem' }}
                 >
                   {[STATEWIDE_LABEL, ...selectedCities.filter(c => c !== 'Statewide')].map(c => (
                     <option key={c} value={c}>{c === STATEWIDE_LABEL ? 'MA Statewide' : c}</option>
@@ -503,20 +538,20 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
             )}
           </div>
 
-          <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '1rem' }}>
-            Region breakdown · <strong style={{ color: '#fff' }}>{effectiveChartCity === STATEWIDE_LABEL ? 'MA Statewide' : effectiveChartCity}</strong> · 2024 ACS
+          <p style={{ color: '#6f6f6f', fontSize: '0.85rem', marginBottom: '1rem' }}>
+            Region breakdown · <strong style={{ color: '#361247' }}>{effectiveChartCity === STATEWIDE_LABEL ? 'MA Statewide' : effectiveChartCity}</strong> · 2024 ACS
           </p>
 
           <ResponsiveContainer width="100%" height={Math.max(300, byContinentData.length * 42 + 40)}>
             <BarChart data={byContinentData} layout="vertical" margin={{ left: 140, right: 60 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-              <XAxis type="number" tick={{ fill: '#aaa', fontSize: 11 }} />
-              <YAxis dataKey="continent" type="category" tick={{ fill: '#ccc', fontSize: 11 }} width={130} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e6e6e6" />
+              <XAxis type="number" tick={{ fill: '#6f6f6f', fontSize: 11 }} />
+              <YAxis dataKey="continent" type="category" tick={{ fill: '#454545', fontSize: 11 }} width={130} />
               <Tooltip
                 formatter={(val) => [`${Number(val).toLocaleString()}`, 'Estimate']}
-                contentStyle={{ background: '#1e1e2e', border: '1px solid #444', color: '#fff' }}
+                contentStyle={{ background: '#ffffff', border: '1px solid #dadada', color: '#373737' }}
                 itemStyle={{ color: ACCENT }}
-                labelStyle={{ color: '#fff' }}
+                labelStyle={{ color: '#373737' }}
               />
               <Bar dataKey="estimate" radius={[0, 4, 4, 0]}>
                 {byContinentData.map((row, i) => (
@@ -532,21 +567,21 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
             </h3>
 
             {continentTrendLoading ? (
-              <p style={{ color: '#888', fontSize: '0.85rem' }}>Loading trend...</p>
+              <p style={{ color: '#6f6f6f', fontSize: '0.85rem' }}>Loading trend...</p>
             ) : continentTrendData.length > 0 ? (
               <ResponsiveContainer width="100%" height={320}>
                 <LineChart data={continentTrendData} margin={{ top: 8, right: 120, left: 16, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="year" tick={{ fill: '#aaa', fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e6e6e6" />
+                  <XAxis dataKey="year" tick={{ fill: '#6f6f6f', fontSize: 11 }} />
                   <YAxis
-                    tick={{ fill: '#aaa', fontSize: 11 }}
+                    tick={{ fill: '#6f6f6f', fontSize: 11 }}
                     tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
                   />
                   <Tooltip
                     itemSorter={(item) => -(Number(item?.value) || 0)}
                     formatter={(val, name) => [Number(val).toLocaleString(), name]}
-                    contentStyle={{ background: '#1e1e2e', border: '1px solid #444', color: '#fff' }}
-                    labelStyle={{ color: '#fff' }}
+                    contentStyle={{ background: '#ffffff', border: '1px solid #dadada', color: '#373737' }}
+                    labelStyle={{ color: '#373737' }}
                   />
                   {CONTINENT_ORDER.map((continent) => (
                     <Line
@@ -572,7 +607,7 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <p style={{ color: '#888', fontSize: '0.85rem' }}>No historical trend data available.</p>
+              <p style={{ color: '#6f6f6f', fontSize: '0.85rem' }}>No historical trend data available.</p>
             )}
           </div>
         </>

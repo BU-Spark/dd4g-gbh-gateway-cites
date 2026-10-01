@@ -2,8 +2,8 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #0f1117;
-  color: #e0e0e0;
+  background: var(--gbh-surface);
+  color: var(--gbh-text);
 }
 
 .loading {
@@ -12,7 +12,7 @@ body {
   align-items: center;
   height: 100vh;
   font-size: 1.2rem;
-  color: #888;
+  color: var(--gbh-muted);
 }
 
 .app {
@@ -21,35 +21,45 @@ body {
 }
 
 .app-footer {
-  border-top: 1px solid #2a2a3a;
-  background: #13141f;
+  border-top: 1px solid var(--gbh-midnight);
+  background: var(--gbh-midnight);
   padding: 1rem 1.25rem;
 }
 
 .app-footer-inner {
   max-width: 1100px;
   margin: 0 auto;
-  color: #9aa3c7;
+  color: var(--gbh-rose);
   font-size: 0.8rem;
   line-height: 1.35;
 }
 
 .app-footer-inner a {
-  color: #c7d2fe;
-}
-
-.app-footer-inner a:hover {
   color: #ffffff;
 }
 
+.app-footer-inner a:hover {
+  color: var(--gbh-dusky);
+}
+
 .header {
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid #2a2a3a;
-  background: #13141f;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.1rem 2rem;
+  border-bottom: 1px solid var(--gbh-midnight);
+  background: var(--gbh-dark);
+  color: #fff;
+}
+
+.header-mark {
+  height: 46px;
+  width: auto;
+  flex: 0 0 auto;
 }
 
 .header h1 { font-size: 1.5rem; font-weight: 700; color: #fff; }
-.header p  { font-size: 0.85rem; color: #888; margin-top: 0.25rem; }
+.header p  { font-size: 0.85rem; color: var(--gbh-rose); margin-top: 0.25rem; }
 
 .layout {
   display: flex;
@@ -61,8 +71,8 @@ body {
 .sidebar {
   width: 220px;
   min-width: 220px;
-  background: #13141f;
-  border-right: 1px solid #2a2a3a;
+  background: var(--gbh-surface);
+  border-right: 1px solid var(--gbh-border);
   padding: 1rem;
   overflow-y: auto;
 }
@@ -71,21 +81,55 @@ body {
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #888;
+  color: var(--gbh-muted);
   margin-bottom: 0.75rem;
+}
+
+.type-legend {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--gbh-muted);
+  margin: -0.35rem 0 0.5rem;
 }
 
 .city-type-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
   margin-bottom: 0.75rem;
 }
 
-.type-label {
+.type-filter-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  padding: 0.3rem 0.45rem;
   font-size: 0.75rem;
-  margin-bottom: 0.25rem;
+  cursor: pointer;
+  color: var(--gbh-text);
 }
 
-.type-label.gateway { color: #4e9af1; }
-.type-label.other { color: #bfc4cf; }
+.type-filter-btn.gateway { color: var(--gbh-brand); }
+.type-filter-btn.other { color: var(--gbh-muted); }
+
+.type-filter-btn:hover {
+  background: var(--gbh-pink);
+}
+
+.type-filter-btn.active.gateway {
+  background: var(--gbh-rose);
+  border-color: var(--gbh-brand);
+}
+
+.type-filter-btn.active.other {
+  background: var(--gbh-surface-muted);
+  border-color: var(--gbh-border-strong);
+  color: var(--gbh-text);
+}
 
 .city-list {
   display: flex;
@@ -99,22 +143,22 @@ body {
   border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;
-  color: #ccc;
+  color: var(--gbh-text);
   font-size: 0.8rem;
   cursor: pointer;
   transition: all 0.15s;
 }
 
-.city-btn:hover { background: #1e1f2e; }
+.city-btn:hover { background: var(--gbh-pink); }
 
 .city-btn.active {
-  border-color: #4e9af1;
-  background: #1a2540;
-  color: #fff;
+  border-color: var(--gbh-brand);
+  background: var(--gbh-rose);
+  color: var(--gbh-midnight);
 }
 
-.city-btn.gateway { border-left: 3px solid #4e9af1; }
-.city-btn.other { border-left: 3px solid #bfc4cf; }
+.city-btn.gateway { border-left: 3px solid var(--gbh-brand); }
+.city-btn.other { border-left: 3px solid var(--gbh-lavender); }
 
 .selected-cities-list {
   display: flex;
@@ -127,12 +171,12 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #1b1d36;
-  border: 1px solid #3b4371;
+  background: var(--gbh-pink);
+  border: 1px solid var(--gbh-dusky);
   border-radius: 8px;
   padding: 6px 8px;
   font-size: 0.82rem;
-  color: #fff;
+  color: var(--gbh-midnight);
 }
 
 .selected-city-name {
@@ -145,7 +189,7 @@ body {
 .selected-city-remove {
   background: transparent;
   border: none;
-  color: #888;
+  color: var(--gbh-muted);
   cursor: pointer;
   font-size: 1.1rem;
   line-height: 1;
@@ -155,22 +199,22 @@ body {
 }
 
 .selected-city-remove:hover {
-  color: #fff;
+  color: var(--gbh-brand);
 }
 
 .clear-btn {
   margin-top: 0.25rem;
   width: 100%;
   padding: 0.4rem;
-  background: #2a2a3a;
-  color: #ccc;
+  background: var(--gbh-surface-muted);
+  color: var(--gbh-text);
   border: none;
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.8rem;
 }
 
-.clear-btn:hover { background: #3a3a4a; }
+.clear-btn:hover { background: var(--gbh-rose); }
 
 .main {
   flex: 1;
@@ -179,50 +223,14 @@ body {
   width: 100%;
 }
 
+.main h2,
+.main h3 {
+  color: var(--gbh-midnight);
+}
+
 .main h2 {
   font-size: 1.2rem;
   margin-bottom: 10px;
-}
-
-.bar-chart {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.bar-row {
-  display: grid;
-  grid-template-columns: 130px 1fr 50px;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.bar-label {
-  font-size: 0.8rem;
-  color: #ccc;
-  text-align: right;
-}
-
-.bar-track {
-  background: #1e1f2e;
-  border-radius: 4px;
-  height: 20px;
-  overflow: hidden;
-}
-
-.bar-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.4s ease;
-}
-
-.bar-fill.gateway { background: #4e9af1; }
-.bar-fill.other { background: #bfc4cf; }
-.bar-fill.state { background: #6c757d; }
-
-.bar-value {
-  font-size: 0.8rem;
-  color: #aaa;
 }
 
 .tabs-row {
@@ -231,7 +239,7 @@ body {
   align-items: center;
   gap: 12px;
   margin-bottom: 1.5rem;
-  border-bottom: 1px solid #2a2a3a;
+  border-bottom: 1px solid var(--gbh-border);
   padding-bottom: 0.75rem;
 }
 
@@ -247,22 +255,22 @@ body {
 .tab-btn {
   padding: 0.5rem 1.1rem;
   border-radius: 6px;
-  border: 1px solid #2a2a3a;
+  border: 1px solid var(--gbh-border-strong);
   background: transparent;
-  color: #888;
+  color: var(--gbh-muted);
   font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .tab-btn:hover {
-  background: #1e1f2e;
-  color: #ccc;
+  background: var(--gbh-pink);
+  color: var(--gbh-dark);
 }
 
 .tab-btn.active {
-  background: #1a2540;
-  border-color: #4e9af1;
+  background: var(--gbh-brand);
+  border-color: var(--gbh-brand);
   color: #fff;
 }
 
@@ -274,10 +282,10 @@ body {
 .placeholder {
   margin-top: 2rem;
   padding: 2rem;
-  background: #1e1f2e;
+  background: var(--gbh-pink);
   border-radius: 8px;
   text-align: center;
-  color: #ccc;
+  color: var(--gbh-text);
 }
 
 .comparison-controls {
@@ -287,7 +295,7 @@ body {
 .comparison-controls h2 {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--gbh-midnight);
   margin-bottom: 0.9rem;
   margin-top: 2rem;
 }
@@ -302,28 +310,28 @@ body {
 .pill {
   padding: 0.45rem 0.95rem;
   border-radius: 999px;
-  border: 1px solid #2a2a3a;
+  border: 1px solid var(--gbh-border-strong);
   background: transparent;
-  color: #888;
+  color: var(--gbh-muted);
   font-size: 0.84rem;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .pill:hover {
-  background: #1e1f2e;
-  color: #ccc;
+  background: var(--gbh-pink);
+  color: var(--gbh-dark);
 }
 
 .pill.active {
-  background: #1a2540;
-  border-color: #4e9af1;
+  background: var(--gbh-brand);
+  border-color: var(--gbh-brand);
   color: #fff;
 }
 
 .hint {
   font-size: 0.8rem;
-  color: #666f8b;
+  color: var(--gbh-muted);
   margin-top: 0.35rem;
   margin-bottom: 0.35rem;
 }
@@ -341,7 +349,7 @@ body {
 }
 
 .city-profile-subtitle {
-  color: #aaa;
+  color: var(--gbh-muted);
   margin-bottom: 1.5rem;
   text-transform: capitalize;
 }
@@ -354,31 +362,31 @@ body {
 }
 
 .city-profile-card {
-  background: #1e1e2e;
+  background: var(--gbh-pink);
   border-radius: 10px;
   padding: 1rem;
   min-width: 160px;
   flex: 1;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 0 0 1px var(--gbh-rose);
 }
 
 .city-profile-card-label {
   font-size: 0.75rem;
-  color: #aaa;
+  color: var(--gbh-muted);
 }
 
 .city-profile-card-value {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--gbh-midnight);
   margin-top: 0.35rem;
 }
 
 .city-profile-card-meta {
   font-size: 0.78rem;
-  color: #888;
+  color: var(--gbh-muted);
   margin-top: 0.85rem;
-  border-top: 1px solid #2a2a3a;
+  border-top: 1px solid var(--gbh-rose);
   padding-top: 0.75rem;
   display: flex;
   align-items: center;
@@ -387,54 +395,17 @@ body {
 }
 
 .city-profile-card-delta.positive {
-  color: #4ade80;
+  color: var(--gbh-green);
   font-weight: 600;
 }
 
 .city-profile-card-delta.negative {
-  color: #f87171;
+  color: var(--gbh-red);
   font-weight: 600;
 }
 
 .city-profile-chart-title {
   margin-bottom: 0.75rem;
-}
-
-/* =========================
-   Map styles
-========================= */
-
-.map-shell {
-  width: 100%;
-}
-
-.map-container {
-  width: 100%;
-  height: calc(100vh - 200px);
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid #2a2a3a;
-}
-
-.map-leaflet {
-  width: 100%;
-  height: 100%;
-}
-
-.leaflet-container {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-.leaflet-tooltip {
-  background: #13141f;
-  border: 1px solid #2a2a3a;
-  color: #f8fafc;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
-}
-
-.leaflet-tooltip strong {
-  color: #ffffff;
 }
 
 .recharts-tooltip-wrapper,
@@ -443,12 +414,12 @@ body {
 .recharts-tooltip-item,
 .recharts-tooltip-item-name,
 .recharts-tooltip-item-value {
-  color: #f8fafc !important;
+  color: var(--gbh-text) !important;
 }
 
 .recharts-default-tooltip {
-  background: #13141f !important;
-  border: 1px solid #2a2a3a !important;
+  background: var(--gbh-surface) !important;
+  border: 1px solid var(--gbh-border) !important;
   border-radius: 6px;
 }
 
@@ -465,20 +436,20 @@ body {
   width: 100%;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid #3b4371;
-  background: #1b1d36;
-  color: #fff;
+  border: 1px solid var(--gbh-border-strong);
+  background: var(--gbh-surface);
+  color: var(--gbh-text);
   outline: none;
   font-size: 0.95rem;
 }
 
 .city-search-input::placeholder {
-  color: #9aa3c7;
+  color: var(--gbh-lavender);
 }
 
 .city-search-input:focus {
-  border-color: #5aa2ff;
-  box-shadow: 0 0 0 2px rgba(90, 162, 255, 0.18);
+  border-color: var(--gbh-brand);
+  box-shadow: 0 0 0 2px rgba(115, 36, 135, 0.18);
 }
 
 .city-search-dropdown {
@@ -488,11 +459,11 @@ body {
   right: 0;
   max-height: 280px;
   overflow-y: auto;
-  background: #232742;
-  border: 1px solid #3b4371;
+  background: var(--gbh-surface);
+  border: 1px solid var(--gbh-border-strong);
   border-radius: 12px;
   z-index: 30;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 10px 24px rgba(54, 18, 71, 0.12);
   padding: 6px;
 }
 
@@ -500,7 +471,7 @@ body {
   width: 100%;
   border: none;
   background: transparent;
-  color: #fff;
+  color: var(--gbh-text);
   text-align: left;
   padding: 10px 12px;
   border-radius: 8px;
@@ -509,15 +480,16 @@ body {
 }
 
 .city-search-result:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--gbh-pink);
 }
 
 .city-search-result.active {
-  background: rgba(90, 162, 255, 0.2);
+  background: var(--gbh-rose);
+  color: var(--gbh-midnight);
 }
 
 .city-search-empty {
-  color: #b7bfd8;
+  color: var(--gbh-muted);
   padding: 10px 12px;
   font-size: 0.92rem;
 }
@@ -526,7 +498,7 @@ body {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #555;
+  color: var(--gbh-muted);
   padding: 6px 12px 4px;
 }
 
@@ -534,8 +506,8 @@ body {
   margin-right: 8px;
 }
 
-.search-dot.gateway { color: #5aa2ff; }
-.search-dot.other { color: #bfc4cf; }
+.search-dot.gateway { color: var(--gbh-brand); }
+.search-dot.other { color: var(--gbh-lavender); }
 
 /* =========================
    Shared controls
@@ -557,13 +529,13 @@ body {
 
 .overview-control-group label {
   font-size: 0.85rem;
-  color: #aaa;
+  color: var(--gbh-muted);
 }
 
 .overview-select {
-  background: #1b1d36;
-  color: #fff;
-  border: 1px solid #3b4371;
+  background: var(--gbh-surface);
+  color: var(--gbh-text);
+  border: 1px solid var(--gbh-border-strong);
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 0.9rem;
@@ -571,13 +543,13 @@ body {
 }
 
 .overview-select:focus {
-  border-color: #5aa2ff;
+  border-color: var(--gbh-brand);
 }
 
 .overview-toggle-btn {
   background: transparent;
-  color: #ccc;
-  border: 1px solid #3b4371;
+  color: var(--gbh-text);
+  border: 1px solid var(--gbh-border-strong);
   border-radius: 8px;
   padding: 8px 12px;
   cursor: pointer;
@@ -586,12 +558,110 @@ body {
 }
 
 .overview-toggle-btn:hover {
-  background: #1e1f2e;
-  color: #fff;
+  background: var(--gbh-pink);
+  color: var(--gbh-dark);
 }
 
 .overview-toggle-btn.active {
-  background: #1a2540;
-  border-color: #4e9af1;
+  background: var(--gbh-brand);
+  border-color: var(--gbh-brand);
   color: #fff;
+}
+
+.instructions-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(54, 18, 71, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.instructions-dialog {
+  width: min(680px, 100%);
+  max-height: min(82vh, 760px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  color: var(--gbh-text);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 18px 48px rgba(54, 18, 71, 0.28);
+}
+
+.instructions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--gbh-dark);
+  color: #fff;
+}
+
+.instructions-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #fff;
+}
+
+.instructions-close {
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.15rem;
+}
+
+.instructions-body {
+  overflow-y: auto;
+  padding: 1.25rem 1.4rem 0.5rem;
+}
+
+.instructions-body section + section {
+  margin-top: 1.25rem;
+}
+
+.instructions-body h3 {
+  margin: 0 0 0.45rem;
+  color: var(--gbh-midnight);
+  font-size: 1rem;
+}
+
+.instructions-body p {
+  margin: 0 0 0.7rem;
+  line-height: 1.5;
+}
+
+.instructions-body ul {
+  margin: 0 0 0.7rem;
+  padding-left: 1.2rem;
+}
+
+.instructions-body li + li {
+  margin-top: 0.35rem;
+}
+
+.instructions-footer {
+  padding: 0.9rem 1.25rem 1.15rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.instructions-done {
+  border: none;
+  border-radius: 999px;
+  background: var(--gbh-brand);
+  color: #fff;
+  font-size: 0.9rem;
+  padding: 0.55rem 1.1rem;
+  cursor: pointer;
+}
+
+.instructions-done:hover {
+  background: var(--gbh-dark);
 }

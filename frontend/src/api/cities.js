@@ -52,14 +52,12 @@ export function prefetchDashboardData() {
   const requests = [
     fetchCities(),
     fetchForeignBorn(),
-    fetchMapStats(),
     fetchEducation(),
     fetchEmploymentIncome(),
     fetchHomeownership(),
     fetchMedianIncome(),
     fetchStateProfile(),
     fetchStateAverages(),
-    fetchStatewideForeignBorn(),
     fetchStateCountryOfOrigin(),
     fetchContinentTrend("state"),
     fetchContinentTrend("gateway"),
@@ -95,10 +93,6 @@ export async function fetchForeignBorn(params = {}) {
   return fetchJson(`/api/foreign-born${query ? `?${query}` : ""}`);
 }
 
-export async function fetchStatewideForeignBorn() {
-  return fetchJson("/api/statewide/foreign-born");
-}
-
 export async function fetchCountryOfOrigin(city, options = {}) {
   const params = new URLSearchParams();
   if (city) params.set("city", city);
@@ -128,8 +122,14 @@ export async function fetchHomeownership(city) {
   return fetchJson(url);
 }
 
-export async function fetchMapStats() {
-  return fetchJson("/api/map-stats");
+export async function fetchCountryNames() {
+  return fetchJson("/api/country-names");
+}
+
+export async function fetchCountryTrend(country) {
+  const params = new URLSearchParams();
+  if (country) params.set("country", country);
+  return fetchJson(`/api/country-trend?${params.toString()}`);
 }
 
 export async function fetchTimeSeries({ city, metric } = {}) {
@@ -155,6 +155,13 @@ export async function fetchStateCountryOfOrigin() {
 
 export async function fetchContinentTrend(scope = "state") {
   return fetchJson(`/api/continent-trend?scope=${encodeURIComponent(scope)}`);
+}
+
+export async function fetchForeignBornCharacteristics(city) {
+  const url = city
+    ? `/api/foreign-born-characteristics?city=${encodeURIComponent(city)}`
+    : "/api/foreign-born-characteristics";
+  return fetchJson(url);
 }
 
 export async function fetchMedianIncome(city) {

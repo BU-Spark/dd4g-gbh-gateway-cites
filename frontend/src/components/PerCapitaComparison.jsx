@@ -17,8 +17,8 @@ import {
 } from '../api/cities'
 
 const COLORS = {
-  gateway: '#4e9af1',
-  other: '#bfc4cf',
+  gateway: '#732487',
+  other: '#a2a2a2',
 }
 
 const downloadCSV = (filename, rows) => {
@@ -171,10 +171,16 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
 
   const chartHeight = Math.max(filteredSortedData.length * 42 + 40, 320)
 
+  const formatIncome = (value) => {
+    const amount = Number(value)
+    if (amount === 250001) return '$250,000+'
+    return `$${amount.toLocaleString()}`
+  }
+
   const formatValue = (value) => {
     if (value == null) return 'N/A'
     return metric === 'median_household_income'
-      ? `$${Number(value).toLocaleString()}`
+      ? formatIncome(value)
       : `${Number(value).toFixed(1)}%`
   }
 
@@ -230,7 +236,7 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
         <div className="loading">Loading...</div>
       ) : (
         <>
-          <p style={{ color: '#888', marginBottom: '10px' }}>
+          <p style={{ color: '#6f6f6f', marginBottom: '10px' }}>
             Showing {filteredSortedData.length} rows
           </p>
 
@@ -242,31 +248,31 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
             >
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="#2a2a3a"
+                stroke="#e6e6e6"
                 horizontal={false}
               />
               <XAxis
                 type="number"
-                tick={{ fill: '#888', fontSize: 11 }}
+                tick={{ fill: '#6f6f6f', fontSize: 11 }}
                 tickFormatter={(v) =>
                   metric === 'median_household_income'
-                    ? `$${Number(v).toLocaleString()}`
+                    ? formatIncome(v)
                     : `${Number(v).toFixed(1)}%`
                 }
               />
               <YAxis
                 type="category"
                 dataKey="city"
-                tick={{ fill: '#ccc', fontSize: 11 }}
+                tick={{ fill: '#454545', fontSize: 11 }}
                 width={105}
               />
               <Tooltip
                 contentStyle={{
-                  background: '#1e1f2e',
-                  border: '1px solid #2a2a3a',
+                  background: '#ffffff',
+                  border: '1px solid #dadada',
                   borderRadius: 6,
                 }}
-                labelStyle={{ color: '#fff' }}
+                labelStyle={{ color: '#373737' }}
                 itemStyle={{ color: COLORS.gateway }}
                 formatter={(value) => [formatValue(value), selectedMetric.label]}
               />

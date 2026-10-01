@@ -41,6 +41,15 @@ def country_of_origin():
     all_years = request.args.get("all_years") == "1"
     return jsonify(data_store.get_country_of_origin(city=city, latest_only=not all_years))
 
+@app.get("/api/country-names")
+def country_names():
+    return jsonify(data_store.get_country_names())
+
+@app.get("/api/country-trend")
+def country_trend():
+    country = request.args.get("country", "")
+    return jsonify(data_store.get_country_trend(country))
+
 @app.get("/api/continent-trend")
 def continent_trend():
     scope = request.args.get("scope", "state")
@@ -70,6 +79,11 @@ def poverty():
 def median_income():
     city = request.args.get("city")
     return jsonify(data_store.get_median_income(city=city))
+
+@app.get("/api/foreign-born-characteristics")
+def foreign_born_characteristics():
+    city = request.args.get("city")
+    return jsonify(data_store.get_foreign_born_characteristics(city=city))
 
 @app.get("/api/map-stats")
 def map_stats():

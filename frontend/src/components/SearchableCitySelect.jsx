@@ -49,9 +49,9 @@ export default function SearchableCitySelect({
         onClick={() => setOpen((prev) => !prev)}
         style={{
           width: "100%",
-          background: "#1b1d36",
-          color: "#fff",
-          border: "1px solid #3b4371",
+          background: "#ffffff",
+          color: "#373737",
+          border: "1px solid #c2c2c2",
           borderRadius: "10px",
           padding: "12px 14px",
           textAlign: "left",
@@ -68,10 +68,10 @@ export default function SearchableCitySelect({
             top: "calc(100% + 8px)",
             left: 0,
             width: "100%",
-            background: "#111427",
-            border: "1px solid #3b4371",
+            background: "#ffffff",
+            border: "1px solid #c2c2c2",
             borderRadius: "12px",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+            boxShadow: "0 10px 30px rgba(54,18,71,0.12)",
             zIndex: 1000,
             overflow: "hidden",
           }}
@@ -87,9 +87,9 @@ export default function SearchableCitySelect({
                 width: "100%",
                 padding: "10px 12px",
                 borderRadius: "8px",
-                border: "1px solid #3b4371",
-                background: "#0b1020",
-                color: "#fff",
+                border: "1px solid #c2c2c2",
+                background: "#ffffff",
+                color: "#373737",
                 outline: "none",
               }}
             />
@@ -119,8 +119,8 @@ export default function SearchableCitySelect({
                       padding: "10px 12px",
                       border: "none",
                       borderRadius: "8px",
-                      background: isSelected ? "#2563eb" : "transparent",
-                      color: "#fff",
+                      background: isSelected ? "#732487" : "transparent",
+                      color: isSelected ? "#fff" : "#373737",
                       cursor: "pointer",
                       marginBottom: "4px",
                     }}
@@ -133,7 +133,7 @@ export default function SearchableCitySelect({
               <div
                 style={{
                   padding: "10px 12px",
-                  color: "#a0a7c0",
+                  color: "#6f6f6f",
                 }}
               >
                 No matching cities

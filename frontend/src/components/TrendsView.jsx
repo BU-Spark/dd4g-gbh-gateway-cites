@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from 'react'
-import { fetchTimeSeries } from '../api/cities'
+import { fetchCountryNames, fetchCountryTrend, fetchTimeSeries } from '../api/cities'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, ReferenceLine,
+  CartesianGrid, ReferenceLine, ErrorBar,
 } from 'recharts'
 
 const METRICS = [
@@ -16,8 +16,8 @@ const METRICS = [
 ]
 
 const CITY_COLORS = [
-  '#4e9af1', '#f1914e', '#a14ef1', '#4ef1a1', '#f14e7a',
-  '#f1e44e', '#4ef1e4', '#f17a4e', '#7af14e', '#4e6af1',
+  '#732487', '#2652b2', '#ad40d9', '#bf0f0f', '#4f1c59',
+  '#2b72f6', '#ea0051', '#b870d6', '#0051e7', '#ffc21b',
 ]
 
 const getCityColor = (city) => {
@@ -113,14 +113,39 @@ export default function TrendsView({ selectedCities }) {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(false)
   const [cityFilter, setCityFilter] = useState('selected') // 'selected' | 'gateway' | 'all'
+  const [countryNames, setCountryNames] = useState([])
+  const [countryQuery, setCountryQuery] = useState('')
+  const [countryMenuOpen, setCountryMenuOpen] = useState(false)
+
+  const matchedCountry = useMemo(() => {
+    const query = countryQuery.trim().toLowerCase()
+    if (!query) return ''
+    return countryNames.find((name) => name.toLowerCase() === query) || ''
+  }, [countryQuery, countryNames])
 
   const activeCities = useMemo(() => {
     if (cityFilter === 'selected' && selectedCities.length > 0) return selectedCities
     if (cityFilter === 'gateway') return GATEWAY_CITIES
+    if (matchedCountry && cityFilter === 'selected') return []
     return null
-  }, [cityFilter, selectedCities])
+  }, [cityFilter, selectedCities, matchedCountry])
+
+  const countrySuggestions = useMemo(() => {
+    const query = countryQuery.trim().toLowerCase()
+    if (query.length < 2) return []
+    return countryNames
+      .filter((name) => name.toLowerCase().includes(query) && name.toLowerCase() !== query)
+      .slice(0, 8)
+  }, [countryQuery, countryNames])
 
   useEffect(() => {
+    fetchCountryNames()
+      .then((names) => setCountryNames(Array.isArray(names) ? names : []))
+      .catch((err) => console.error('Failed to load country names:', err))
+  }, [])
+
+  useEffect(() => {
+    if (matchedCountry) return undefined
     setLoading(true)
     fetchTimeSeries({ metric })
       .then((rows) => {
@@ -131,7 +156,23 @@ export default function TrendsView({ selectedCities }) {
         console.error('Failed to load trends data:', err)
         setLoading(false)
       })
-  }, [metric])
+    return undefined
+  }, [metric, matchedCountry])
+
+  useEffect(() => {
+    if (!matchedCountry) return undefined
+    setLoading(true)
+    fetchCountryTrend(matchedCountry)
+      .then((rows) => {
+        setData(Array.isArray(rows) ? rows : [])
+        setLoading(false)
+      })
+      .catch((err) => {
+        console.error('Failed to load country trend:', err)
+        setLoading(false)
+      })
+    return undefined
+  }, [matchedCountry])
 
   const chartData = useMemo(() => {
     let rows = data
@@ -143,6 +184,7 @@ export default function TrendsView({ selectedCities }) {
     rows.forEach((r) => {
       if (!byYear[r.year]) byYear[r.year] = { year: r.year }
       byYear[r.year][r.city] = r.value
+      if (r.moe != null) byYear[r.year][`${r.city}__moe`] = r.moe
     })
 
     return Object.values(byYear).sort((a, b) => a.year - b.year)
@@ -172,40 +214,134 @@ export default function TrendsView({ selectedCities }) {
         return String(a.city).localeCompare(String(b.city))
       })
       .map((r) => ({
-        metric_key: metric,
-        metric_label: METRICS.find((m) => m.key === metric)?.label || metric,
+        metric_key: matchedCountry ? 'country_of_origin' : metric,
+        metric_label: matchedCountry
+          ? `Born in ${matchedCountry}`
+          : (METRICS.find((m) => m.key === metric)?.label || metric),
+        country: matchedCountry,
         city_filter: cityFilter,
         city: r.city,
         year: r.year,
         value: r.value,
+        margin_of_error: r.moe ?? '',
       }))
-  }, [data, activeCities, metric, cityFilter])
+  }, [data, activeCities, metric, cityFilter, matchedCountry])
 
   useEffect(() => {
     const handleDownload = (event) => {
       if (event.detail?.tab !== 'Trends') return
       if (!exportRows.length) return
 
-      const metricSlug = metric.toLowerCase().replace(/\s+/g, '_')
+      const metricSlug = (matchedCountry || metric).toLowerCase().replace(/\s+/g, '_')
       downloadCSV(`trends_${metricSlug}.csv`, exportRows)
     }
 
     window.addEventListener('download-active-tab', handleDownload)
     return () => window.removeEventListener('download-active-tab', handleDownload)
-  }, [exportRows, metric])
+  }, [exportRows, metric, matchedCountry])
 
   const metaObj = METRICS.find((m) => m.key === metric) || METRICS[0]
+  const valueFormat = matchedCountry ? 'count' : metaObj.format
+  const hasMargins = chartData.some((row) => Object.keys(row).some((key) => key.endsWith('__moe')))
 
   const formatValue = (v) => {
-    if (v == null) return '—'
-    return metaObj.format === '$'
-      ? `$${Number(v).toLocaleString()}`
-      : `${Number(v).toFixed(1)}%`
+    if (v == null || v === '') return '—'
+    if (valueFormat === 'count') return Number(v).toLocaleString()
+    if (valueFormat === '$') {
+      if (Number(v) === 250001) return '$250,000+'
+      return `$${Math.round(Number(v)).toLocaleString()}`
+    }
+    return `${Number(v).toFixed(1)}%`
+  }
+
+  const formatWithMargin = (value, city, row) => {
+    const text = formatValue(value)
+    const moe = row?.[`${city}__moe`]
+    if (moe == null) return text
+    return `${text} ± ${formatValue(moe)}`
   }
 
   return (
     <div style={{ padding: '1rem' }}>
       <h2 style={{ marginBottom: '1rem' }}>Trends (2012–2024)</h2>
+
+      <div style={{ position: 'relative', maxWidth: '520px', marginBottom: '1rem', zIndex: 20 }}>
+        <label htmlFor="trend-country-search" style={{ color: '#361247', fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+          Country of origin
+        </label>
+        <input
+          id="trend-country-search"
+          type="text"
+          placeholder="Search a country, such as Cambodia"
+          value={countryQuery}
+          onChange={(event) => {
+            setCountryQuery(event.target.value)
+            setCountryMenuOpen(true)
+          }}
+          onFocus={() => setCountryMenuOpen(true)}
+          onBlur={() => setTimeout(() => setCountryMenuOpen(false), 120)}
+          style={{
+            width: '100%',
+            background: '#ffffff',
+            color: '#373737',
+            border: '1px solid #732487',
+            borderRadius: '8px',
+            padding: '0.65rem 0.8rem',
+            fontSize: '1rem',
+          }}
+        />
+        {countryMenuOpen && countrySuggestions.length > 0 && (
+          <ul style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            background: '#ffffff',
+            border: '1px solid #c2c2c2',
+            borderRadius: '8px',
+            margin: '4px 0 0',
+            padding: '0.25rem 0',
+            listStyle: 'none',
+            zIndex: 30,
+            boxShadow: '0 10px 30px rgba(54,18,71,0.12)',
+          }}>
+            {countrySuggestions.map((name) => (
+              <li key={name}>
+                <button
+                  type="button"
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                    setCountryQuery(name)
+                    setCountryMenuOpen(false)
+                  }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    background: 'transparent',
+                    border: 'none',
+                    padding: '0.5rem 0.8rem',
+                    cursor: 'pointer',
+                    color: '#373737',
+                  }}
+                >
+                  {name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p style={{ color: '#6f6f6f', fontSize: '0.82rem', margin: '0.45rem 0 0' }}>
+          {matchedCountry
+            ? `Showing how many residents were born in ${matchedCountry}, from 2012 to 2024.`
+            : 'Search a country to see how that population has changed. Leave this blank to use the metric below.'}
+          {matchedCountry && cityFilter === 'selected' && selectedCities.length > 0
+            ? ` Limited to ${selectedCities.filter((city) => city !== 'Statewide').join(', ')} from Filter Cities.`
+            : ''}
+          {matchedCountry && cityFilter === 'selected' && selectedCities.length === 0
+            ? ' Choose All Gateway Cities, or select places in Filter Cities, to draw the lines.'
+            : ''}
+        </p>
+      </div>
 
       <div
         style={{
@@ -217,16 +353,19 @@ export default function TrendsView({ selectedCities }) {
         }}
       >
         <div>
-          <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
+          <label style={{ color: '#6f6f6f', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
             Metric
           </label>
           <select
             value={metric}
-            onChange={(e) => setMetric(e.target.value)}
+            onChange={(e) => {
+              setMetric(e.target.value)
+              setCountryQuery('')
+            }}
             style={{
-              background: '#1e1e2e',
-              color: '#fff',
-              border: '1px solid #444',
+              background: '#ffffff',
+              color: '#373737',
+              border: '1px solid #c2c2c2',
               borderRadius: '6px',
               padding: '0.4rem 0.6rem',
             }}
@@ -238,7 +377,7 @@ export default function TrendsView({ selectedCities }) {
         </div>
 
         <div>
-          <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
+          <label style={{ color: '#6f6f6f', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
             Show geographies
           </label>
           <div style={{ display: 'flex', gap: '0.4rem' }}>
@@ -254,10 +393,10 @@ export default function TrendsView({ selectedCities }) {
                 style={{
                   padding: '0.35rem 0.85rem',
                   borderRadius: '6px',
-                  border: 'none',
                   cursor: 'pointer',
-                  background: cityFilter === val ? '#4e9af1' : '#2a2a3d',
-                  color: cityFilter === val ? '#fff' : '#aaa',
+                  background: cityFilter === val ? '#732487' : '#ffffff',
+                  color: cityFilter === val ? '#fff' : '#6f6f6f',
+                  border: cityFilter === val ? '1px solid #732487' : '1px solid #c2c2c2',
                   fontSize: '0.8rem',
                   opacity: val === 'selected' && selectedCities.length === 0 ? 0.4 : 1,
                 }}
@@ -269,49 +408,58 @@ export default function TrendsView({ selectedCities }) {
         </div>
       </div>
 
-      {loading && <div style={{ color: '#aaa', padding: '2rem' }}>Loading...</div>}
+      {loading && <div style={{ color: '#6f6f6f', padding: '2rem' }}>Loading...</div>}
 
       {!loading && chartData.length > 0 && (
         <>
           {cityFilter === 'all' && (
-            <p style={{ color: '#f1914e', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+            <p style={{ color: '#bf0f0f', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
               ⚠️ Showing all MA county subdivisions — select specific cities for a cleaner view
             </p>
           )}
-          <p style={{ color: '#555', fontSize: '0.75rem', marginBottom: '1rem' }}>
+          <p style={{ color: '#676767', fontSize: '0.75rem', marginBottom: '0.35rem' }}>
             ⚠️ 2020 data reflects COVID-19 nonresponse bias — interpret with caution
           </p>
+          {hasMargins && (
+            <p style={{ color: '#6f6f6f', fontSize: '0.8rem', marginBottom: '1rem' }}>
+              {cities.length <= 40
+                ? 'Vertical bars show the margin of error around each point.'
+                : 'Margins of error are listed in the tooltip. Choose fewer places to draw them on the chart.'}
+            </p>
+          )}
           <ResponsiveContainer width="100%" height={480}>
             <LineChart data={chartData} margin={{ top: 8, right: 120, left: 16, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e6e6e6" />
               <XAxis
                 dataKey="year"
-                tick={{ fill: '#aaa', fontSize: 11 }}
+                tick={{ fill: '#6f6f6f', fontSize: 11 }}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fill: '#aaa', fontSize: 11 }}
-                tickFormatter={(v) =>
-                  metaObj.format === '$' ? `$${(v / 1000).toFixed(0)}k` : `${v.toFixed(1)}%`
-                }
-                width={55}
+                tick={{ fill: '#6f6f6f', fontSize: 11 }}
+                tickFormatter={(v) => {
+                  if (valueFormat === 'count') return Number(v).toLocaleString()
+                  if (valueFormat === '$') return `$${(v / 1000).toFixed(0)}k`
+                  return `${Number(v).toFixed(1)}%`
+                }}
+                width={valueFormat === 'count' ? 72 : 55}
               />
               <Tooltip
                 contentStyle={{
-                  background: '#1e1e2e',
-                  border: '1px solid #444',
-                  color: '#fff',
+                  background: '#ffffff',
+                  border: '1px solid #dadada',
+                  color: '#373737',
                   fontSize: '0.8rem',
                 }}
                 itemSorter={(item) => -(Number(item?.value) || 0)}
-                formatter={(v, name) => [formatValue(v), name]}
+                formatter={(v, name, item) => [formatWithMargin(v, name, item?.payload), name]}
                 labelFormatter={(l) => `Year: ${l}`}
               />
               <ReferenceLine
                 x={2020}
-                stroke="#f1914e"
+                stroke="#bf0f0f"
                 strokeDasharray="4 4"
-                label={{ value: 'COVID', fill: '#f1914e', fontSize: 10 }}
+                label={{ value: 'COVID', fill: '#bf0f0f', fontSize: 10 }}
               />
               {cities.map((city) => (
                 <Line
@@ -339,7 +487,17 @@ export default function TrendsView({ selectedCities }) {
                       </text>
                     )
                   }}
-                />
+                >
+                  {cities.length <= 40 && (
+                    <ErrorBar
+                      dataKey={`${city}__moe`}
+                      width={5}
+                      stroke={cityColorMap[city]}
+                      strokeWidth={1.25}
+                      direction="y"
+                    />
+                  )}
+                </Line>
               ))}
             </LineChart>
           </ResponsiveContainer>
@@ -350,8 +508,10 @@ export default function TrendsView({ selectedCities }) {
       )}
 
       {!loading && chartData.length === 0 && (
-        <div style={{ color: '#555', padding: '2rem', textAlign: 'center' }}>
-          No data for selected cities/metric. Try "All Gateway Cities".
+        <div style={{ color: '#676767', padding: '2rem', textAlign: 'center' }}>
+          {matchedCountry
+            ? `No residents born in ${matchedCountry} for this geography. Try All Gateway Cities.`
+            : 'No data for selected cities/metric. Try "All Gateway Cities".'}
         </div>
       )}
     </div>

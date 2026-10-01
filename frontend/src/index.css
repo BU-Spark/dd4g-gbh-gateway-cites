@@ -2,11 +2,31 @@
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: light dark;
+  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Colors taken from the public wgbh.org stylesheet. */
+  --gbh-midnight: #361247;
+  --gbh-dark: #4f1c59;
+  --gbh-brand: #732487;
+  --gbh-vivid: #ad40d9;
+  --gbh-dusky: #b870d6;
+  --gbh-lavender: #c1afc9;
+  --gbh-rose: #edd4f5;
+  --gbh-pink: #fcf4ff;
+  --gbh-text: #373737;
+  --gbh-muted: #6f6f6f;
+  --gbh-border: #dadada;
+  --gbh-border-strong: #c2c2c2;
+  --gbh-surface: #ffffff;
+  --gbh-surface-muted: #f2f2f2;
+  --gbh-link: #1a7fc3;
+  --gbh-blue: #2652b2;
+  --gbh-red: #bf0f0f;
+  --gbh-green: #68ac4d;
 }
 
 *, *::before, *::after {
