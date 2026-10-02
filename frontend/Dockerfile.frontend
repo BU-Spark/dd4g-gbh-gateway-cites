@@ -6,6 +6,12 @@ COPY package.json package-lock.json* ./
 RUN npm install
 
 COPY . .
+
+# Railway injects service variables at build time only if the Dockerfile declares them.
+# Vite bakes VITE_API_URL into the static site during this build.
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
 RUN npm run build   # outputs to dist/ or build/
 
 # Serve with a tiny web server
