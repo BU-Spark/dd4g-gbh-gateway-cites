@@ -44,27 +44,21 @@ export default function InstructionsModal({ onClose }) {
           <section>
             <h3>About the data</h3>
             <p>
-              This dashboard uses U.S. Census Bureau American Community Survey
-              (ACS) 5-year estimates for Massachusetts places. The figures shown
-              for 2024 describe the 2020–2024 period. The Trends view also
-              includes earlier 5-year releases, back to 2012.
-            </p>
-            <p>
-              The focus is Massachusetts’ 26 Gateway Cities, compared with other
-              cities and towns in the state and with the Massachusetts average.
-              You can use it to see:
+              Explore immigration patterns in Massachusetts’ 26 Gateway Cities,
+              alongside other cities and towns statewide. Use the dashboard to see:
             </p>
             <ul>
-              <li>How large the foreign-born population is, and how that share has changed</li>
-              <li>Which countries and regions people came from</li>
+              <li>The size and change of the foreign-born population</li>
+              <li>Residents’ countries and regions of origin</li>
               <li>
-                How income, education, and homeownership
-                compare across places for foreign-born residents
+                Foreign-born income, education, and homeownership across places
               </li>
             </ul>
             <p>
-              These are survey estimates, not exact counts, so small differences
-              can fall within the margin of error.
+              Data come from U.S. Census Bureau ACS 5-year estimates. The latest
+              release covers 2020–2024; Trends also includes releases back to 2012.
+              These are survey estimates, so small differences may fall within the
+              margin of error.
             </p>
           </section>
 
