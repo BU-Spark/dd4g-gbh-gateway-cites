@@ -20,6 +20,29 @@ body {
   width: 100%;
 }
 
+.embed-frame {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1rem 1.25rem 2rem;
+}
+
+.embed-frame h1 {
+  font-size: 1.35rem;
+  color: #361247;
+  margin-bottom: 0.75rem;
+}
+
+.embed-source {
+  color: #6f6f6f;
+  font-size: 0.8rem;
+  margin-top: 1.25rem;
+}
+
+.embed-missing {
+  color: #6f6f6f;
+  padding: 1rem 0;
+}
+
 .app-footer {
   border-top: 1px solid var(--gbh-midnight);
   background: var(--gbh-midnight);

@@ -10,9 +10,7 @@ import {
 } from 'recharts'
 import {
   fetchForeignBorn,
-  fetchEmploymentIncome,
-  fetchEducation,
-  fetchHomeownership,
+  fetchForeignBornCharacteristics,
   fetchStateProfile,
 } from '../api/cities'
 
@@ -49,20 +47,41 @@ const downloadCSV = (filename, rows) => {
   URL.revokeObjectURL(url)
 }
 
-export default function PerCapitaComparison({ selectedCities, allCities }) {
+const CITY_METRIC_KEYS = [
+  'fb_pct',
+  'fb_bachelors_pct',
+  'fb_homeownership_pct',
+  'fb_median_household_income',
+]
+
+const METRIC_ALIASES = {
+  bachelors_pct: 'fb_bachelors_pct',
+  homeownership_pct: 'fb_homeownership_pct',
+  median_household_income: 'fb_median_household_income',
+}
+
+export default function PerCapitaComparison({
+  selectedCities,
+  allCities,
+  initialMetric,
+  placeTypeFilter = 'all',
+}) {
   const [data, setData] = useState([])
   const [stateProfile, setStateProfile] = useState(null)
-  const [metric, setMetric] = useState('fb_pct')
+  const [metric, setMetric] = useState(
+    CITY_METRIC_KEYS.includes(METRIC_ALIASES[initialMetric] || initialMetric)
+      ? (METRIC_ALIASES[initialMetric] || initialMetric)
+      : 'fb_pct',
+  )
   const [loading, setLoading] = useState(false)
   const [topN, setTopN] = useState(15)
   const [gatewayOnly, setGatewayOnly] = useState(false)
 
   const METRICS = [
-    { key: 'fb_pct', label: 'Foreign-Born %' },
-    { key: 'unemployment_rate', label: 'Unemployment Rate %' },
-    { key: 'bachelors_pct', label: "Bachelor's degree or higher %" },
-    { key: 'homeownership_pct', label: 'Homeownership %' },
-    { key: 'median_household_income', label: 'Median Household Income' },
+    { key: 'fb_pct', label: 'Foreign-Born %', foreignBorn: false },
+    { key: 'fb_bachelors_pct', label: "Bachelor's degree or higher %", foreignBorn: true },
+    { key: 'fb_homeownership_pct', label: 'Homeownership %', foreignBorn: true },
+    { key: 'fb_median_household_income', label: 'Median Household Income', foreignBorn: true },
   ]
 
   useEffect(() => {
@@ -71,31 +90,33 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
     const citiesToFetch =
       selectedCities.length > 0
         ? selectedCities.filter((c) => c !== 'Statewide')
-        : allCities.filter((c) => c.city !== 'Statewide').map((c) => c.city)
+        : allCities
+            .filter((c) => c.city !== 'Statewide')
+            .filter((c) => (
+              placeTypeFilter === 'gateway' || placeTypeFilter === 'other'
+                ? c.city_type === placeTypeFilter
+                : true
+            ))
+            .map((c) => c.city)
 
     Promise.all([
       fetchForeignBorn(),
-      fetchEmploymentIncome(),
-      fetchEducation(),
-      fetchHomeownership(),
+      fetchForeignBornCharacteristics(),
       fetchStateProfile(),
     ])
-      .then(([fb, emp, edu, own, state]) => {
+      .then(([fb, chars, state]) => {
         const merged = citiesToFetch.map((city) => {
           const cityMeta = allCities.find((c) => c.city === city) || {}
           const fbRow = fb.find((r) => r.city === city) || {}
-          const empRow = emp.find((r) => r.city === city) || {}
-          const eduRow = edu.find((r) => r.city === city) || {}
-          const ownRow = own.find((r) => r.city === city) || {}
+          const charRow = chars.find((r) => r.city === city) || {}
 
           return {
             city,
             city_type: cityMeta.city_type || 'other',
             fb_pct: fbRow.fb_pct,
-            unemployment_rate: empRow.unemployment_rate,
-            bachelors_pct: eduRow.bachelors_pct,
-            homeownership_pct: ownRow.homeownership_pct,
-            median_household_income: empRow.median_household_income,
+            fb_bachelors_pct: charRow.fb_bachelors_pct,
+            fb_homeownership_pct: charRow.fb_homeownership_pct,
+            fb_median_household_income: charRow.fb_median_household_income,
           }
         })
 
@@ -107,7 +128,7 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
         console.error('Failed to load per capita comparison data:', err)
         setLoading(false)
       })
-  }, [selectedCities, allCities])
+  }, [selectedCities, allCities, placeTypeFilter])
 
   const selectedMetric = METRICS.find((m) => m.key === metric)
 
@@ -127,10 +148,9 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
       city: 'Statewide',
       city_type: 'state',
       fb_pct: stateProfile.fb_pct,
-      unemployment_rate: stateProfile.unemployment_rate,
-      bachelors_pct: stateProfile.bachelors_pct,
-      homeownership_pct: stateProfile.homeownership_pct,
-      median_household_income: stateProfile.median_household_income,
+      fb_bachelors_pct: stateProfile.fb_bachelors_pct,
+      fb_homeownership_pct: stateProfile.fb_homeownership_pct,
+      fb_median_household_income: stateProfile.fb_median_household_income,
     }
 
     const existingStateIndex = pageRows.findIndex(
@@ -156,10 +176,9 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
         metric_label: selectedMetric?.label,
         metric_value: d[metric],
         fb_pct: d.fb_pct,
-        unemployment_rate: d.unemployment_rate,
-        bachelors_pct: d.bachelors_pct,
-        homeownership_pct: d.homeownership_pct,
-        median_household_income: d.median_household_income,
+        fb_bachelors_pct: d.fb_bachelors_pct,
+        fb_homeownership_pct: d.fb_homeownership_pct,
+        fb_median_household_income: d.fb_median_household_income,
       }))
 
       downloadCSV('per_capita_comparison.csv', rows)
@@ -179,7 +198,7 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
 
   const formatValue = (value) => {
     if (value == null) return 'N/A'
-    return metric === 'median_household_income'
+    return metric === 'fb_median_household_income'
       ? formatIncome(value)
       : `${Number(value).toFixed(1)}%`
   }
@@ -187,7 +206,23 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
   return (
     <div>
       <div className="comparison-controls">
-        <h2>City Metrics — {selectedMetric.label}</h2>
+        <h2>
+          City Metrics — {selectedMetric.label}
+          {selectedMetric.foreignBorn && (
+            <span style={{
+              marginLeft: '0.5rem',
+              color: '#4f1c59',
+              fontSize: '0.7rem',
+              background: '#edd4f5',
+              borderRadius: '4px',
+              padding: '2px 6px',
+              verticalAlign: 'middle',
+              fontWeight: 600,
+            }}>
+              Foreign-born
+            </span>
+          )}
+        </h2>
 
         <div className="overview-controls">
           <div className="overview-control-group">
@@ -226,9 +261,13 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
         </div>
 
         <p className="hint">
-          {selectedCities.length === 0
-            ? 'Showing all cities · Select cities in sidebar to filter'
-            : `Showing ${selectedCities.length} selected ${selectedCities.length === 1 ? 'city' : 'cities'}`}
+          {selectedCities.length > 0
+            ? `Showing ${selectedCities.length} selected ${selectedCities.length === 1 ? 'city' : 'cities'}`
+            : placeTypeFilter === 'gateway'
+              ? 'Showing Gateway Cities'
+              : placeTypeFilter === 'other'
+                ? 'Showing other municipalities'
+                : 'Showing all cities · Select cities in sidebar to filter'}
         </p>
       </div>
 
@@ -255,7 +294,7 @@ export default function PerCapitaComparison({ selectedCities, allCities }) {
                 type="number"
                 tick={{ fill: '#6f6f6f', fontSize: 11 }}
                 tickFormatter={(v) =>
-                  metric === 'median_household_income'
+                  metric === 'fb_median_household_income'
                     ? formatIncome(v)
                     : `${Number(v).toFixed(1)}%`
                 }

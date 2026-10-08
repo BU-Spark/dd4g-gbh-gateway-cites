@@ -6,7 +6,6 @@ from functools import lru_cache
 from .place_names import apply_place_aliases
 
 PROCESSED = Path(__file__).parent.parent.parent / "data" / "processed"
-RAW_S0501 = PROCESSED.parent / "raw" / "ACSST5Y2024.S0501-Data.csv"
 
 BAD_VALUES = {-888888888, -666666666, -999999999}
 
@@ -89,7 +88,7 @@ REGION_LABELS = {
 
 
 GATEWAY_CITY_NAMES = {
-    "Attleboro", "Barnstable", "Barnstable Town", "Brockton", "Chelsea", "Chicopee",
+    "Attleboro", "Barnstable", "Brockton", "Chelsea", "Chicopee",
     "Everett", "Fall River", "Fitchburg", "Haverhill",
     "Holyoke", "Lawrence", "Leominster", "Lowell", "Lynn", "Malden",
     "Methuen", "New Bedford", "Peabody", "Pittsfield", "Quincy",
@@ -136,23 +135,51 @@ def get_country_names():
     return names
 
 
-def get_country_trend(country: str):
-    """Population born in one country, for every place and year."""
-    target = str(country or "").strip()
-    if not target:
+def _count_trend(df: pd.DataFrame, value_col: str) -> list:
+    if df.empty or value_col not in df.columns:
         return []
-    df = _country_rows()
-    df = df[df["country"].str.casefold() == target.casefold()]
-    if df.empty:
-        return []
+    trend = df[df["city_type"] != "state"] if "city_type" in df.columns else df
     grouped = (
-        df.groupby(["city", "year"], dropna=False)["estimate"]
+        trend.groupby(["city", "year"], dropna=False)[value_col]
         .sum()
         .reset_index()
-        .rename(columns={"estimate": "value"})
+        .rename(columns={value_col: "value"})
     )
     grouped = grouped[grouped["value"].notna()]
     return _to_records(grouped.sort_values(["city", "year"]))
+
+
+def get_origin_trend(country: str = None, region: str = None):
+    """People born in a country or region, or the total foreign-born population.
+
+    Counts are one row per town/city and year. The state total is left out so
+    the 'all towns' chart is not dominated by Massachusetts as a whole.
+    """
+    target_country = str(country or "").strip()
+    target_region = str(region or "").strip()
+    if target_country:
+        df = _country_rows()
+        df = df[df["country"].str.casefold() == target_country.casefold()]
+        return _count_trend(df, "estimate")
+    if target_region:
+        df = _country_rows()
+        if "region" not in df.columns:
+            return []
+        df = df[df["region"].astype(str).str.casefold() == target_region.casefold()]
+        return _count_trend(df, "estimate")
+
+    df = _load("foreign_born_core.parquet")
+    df = df.copy()
+    df["foreign_born"] = (
+        pd.to_numeric(df["foreign_born"], errors="coerce")
+        .replace(list(BAD_VALUES), np.nan)
+    )
+    return _count_trend(df, "foreign_born")
+
+
+def get_country_trend(country: str):
+    """Population born in one country, for every place and year."""
+    return get_origin_trend(country=country)
 
 
 def get_country_of_origin(city: str = None, latest_only: bool = True):
@@ -212,64 +239,19 @@ def get_median_income(city: str = None):
     return _to_records(df)
 
 
-def _acs_number(series: pd.Series) -> pd.Series:
-    cleaned = (
-        series.astype(str)
-        .str.replace(",", "", regex=False)
-        .str.replace("+", "", regex=False)
-        .str.strip()
-        .replace({"": np.nan, "nan": np.nan, "None": np.nan, "-": np.nan, "N": np.nan, "(X)": np.nan})
-    )
-    return pd.to_numeric(cleaned, errors="coerce").replace(list(BAD_VALUES), np.nan)
-
-
 @lru_cache(maxsize=1)
 def _foreign_born_characteristics_frame() -> pd.DataFrame:
-    """Foreign-born education, tenure, and household income from ACS S0501 (2024).
-
-    Bachelor's or higher is the sum of the bachelor's and graduate shares.
-    Homeownership and median household income are already published for
-    foreign-born households.
-    """
+    """Foreign-born education, tenure, and household income from ACS S0501."""
     columns = [
         "city", "city_type", "year",
         "fb_bachelors_pct", "fb_homeownership_pct", "fb_median_household_income",
     ]
-    if not RAW_S0501.exists():
+    path = PROCESSED / "foreign_born_characteristics.parquet"
+    if not path.exists():
         return pd.DataFrame(columns=columns)
-
-    raw = pd.read_csv(RAW_S0501, dtype=str, low_memory=False)
-    raw = raw[raw["GEO_ID"].astype(str) != "Geography"].copy()
-    bachelors = _acs_number(raw["S0501_C03_042E"])
-    graduate = _acs_number(raw["S0501_C03_043E"])
-    metrics = pd.DataFrame({
-        "GEO_ID": raw["GEO_ID"].astype(str),
-        "NAME": raw["NAME"].astype(str),
-        "fb_bachelors_pct": bachelors + graduate,
-        "fb_homeownership_pct": _acs_number(raw["S0501_C03_117E"]),
-        "fb_median_household_income": _acs_number(raw["S0501_C03_101E"]),
-    })
-
-    cities = _load("cities_master.parquet")
-    if "year" in cities.columns:
-        cities = cities[cities["year"] == cities["year"].max()]
-    cities = cities[["GEO_ID", "city", "city_type"]].copy()
-    cities["GEO_ID"] = cities["GEO_ID"].astype(str)
-    places = metrics[metrics["GEO_ID"].str.startswith("160")].merge(cities, on="GEO_ID", how="inner")
-    places["year"] = 2024
-    places = places.drop_duplicates(subset=["city"], keep="last")
-
-    state = metrics[metrics["NAME"].eq("Massachusetts")].copy()
-    if not state.empty:
-        state["city"] = "Massachusetts"
-        state["city_type"] = "state"
-        state["year"] = 2024
-        places = pd.concat([places, state], ignore_index=True)
-
-    places["fb_bachelors_pct"] = places["fb_bachelors_pct"].round(1)
-    places["fb_homeownership_pct"] = places["fb_homeownership_pct"].round(1)
-    places["fb_median_household_income"] = places["fb_median_household_income"].round(0)
-    return places[columns]
+    df = _load("foreign_born_characteristics.parquet")
+    keep = [column for column in columns if column in df.columns]
+    return df[keep]
 
 
 def get_foreign_born_characteristics(city: str = None):

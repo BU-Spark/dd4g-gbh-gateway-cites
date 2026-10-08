@@ -10,6 +10,7 @@ const ACCENT = '#732487'
 const OTHER_COLOR = '#a2a2a2'
 const STATEWIDE_LABEL = 'Massachusetts Statewide Total'
 const GATEWAY_LABEL = 'Gateway Cities (Combined)'
+const OTHER_LABEL = 'Other municipalities (combined)'
 
 const CONTINENT_ORDER = [
   'Europe',
@@ -86,8 +87,14 @@ const WrappedCountryTick = ({ x, y, payload }) => {
   )
 }
 
-export default function CountryOrigins({ selectedCities = [], allCities = [] }) {
-  const [mode, setMode] = useState('by_country')
+export default function CountryOrigins({
+  selectedCities = [],
+  allCities = [],
+  embedMode,
+  initialCountry = '',
+  placeTypeFilter = 'all',
+}) {
+  const [mode, setMode] = useState(embedMode === 'regions' ? 'by_continent' : 'by_country')
   const [allData, setAllData] = useState([])
   const [loading, setLoading] = useState(true)
   const [gatewayOnly, setGatewayOnly] = useState(false)
@@ -97,7 +104,7 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
   const [chartCity, setChartCity] = useState('') // city shown in the top-N chart
   const [topN, setTopN] = useState(15)
   const [topNCountry, setTopNCountry] = useState(15)
-  const [countrySearch, setCountrySearch] = useState('')
+  const [countrySearch, setCountrySearch] = useState(initialCountry)
   const [isSuggestionOpen, setIsSuggestionOpen] = useState(false)
 
   const cityTypeByName = useMemo(() => {
@@ -126,11 +133,21 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
       const first = selectedCities.find(c => c !== 'Statewide') || ''
       setSelectedCity(first)
       setChartCity(first)
-    } else {
-      setSelectedCity('')
-      setChartCity('')
+      return
     }
-  }, [selectedCities])
+    if (placeTypeFilter === 'gateway') {
+      setSelectedCity(GATEWAY_LABEL)
+      setChartCity(GATEWAY_LABEL)
+      return
+    }
+    if (placeTypeFilter === 'other') {
+      setSelectedCity(OTHER_LABEL)
+      setChartCity(OTHER_LABEL)
+      return
+    }
+    setSelectedCity('')
+    setChartCity('')
+  }, [selectedCities, placeTypeFilter])
 
   useEffect(() => {
     if (cityNames.length === 0) return
@@ -166,10 +183,12 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
           city_type: row.city_type || cityTypeByName.get(row.city) || 'other',
         }))
         const gatewayRows = cityRows.filter(row => gatewayCitySet.has(row.city))
+        const otherRows = cityRows.filter(row => !gatewayCitySet.has(row.city))
 
         const rows = [
           ...(statewideRows || []).map(row => ({ ...row, city: STATEWIDE_LABEL, city_type: 'state' })),
           ...aggregateByCountry(gatewayRows, GATEWAY_LABEL, 'gateway'),
+          ...aggregateByCountry(otherRows, OTHER_LABEL, 'other'),
           ...cityRows,
         ].filter(r => r.estimate > 0 && isRealCountry(r.country))
 
@@ -196,8 +215,16 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
   const searchScopeCities = useMemo(() => {
     const realSelected = selectedCities.filter(c => c !== 'Statewide')
     if (realSelected.length > 0) return new Set(realSelected)
+    if (placeTypeFilter === 'gateway') return gatewayCitySet
+    if (placeTypeFilter === 'other') {
+      return new Set(
+        allCities
+          .filter((city) => city?.city && city.city !== 'Statewide' && city.city_type === 'other')
+          .map((city) => city.city),
+      )
+    }
     return null // null = no restriction (show all)
-  }, [selectedCities])
+  }, [selectedCities, placeTypeFilter, gatewayCitySet, allCities])
 
   const byCountrySearchData = useMemo(() => {
     if (!countrySearch.trim()) return []
@@ -254,6 +281,10 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
       fetchPromise = fetchContinentTrend('state')
     } else if (effectiveChartCity === GATEWAY_LABEL) {
       fetchPromise = fetchContinentTrend('gateway')
+    } else if (effectiveChartCity === OTHER_LABEL) {
+      setContinentTrendData([])
+      setContinentTrendLoading(false)
+      return undefined
     } else {
       fetchPromise = fetchCountryOfOrigin(effectiveChartCity, { allYears: true })
     }
@@ -283,11 +314,15 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
 
   if (loading) return <div className="placeholder"><p>Loading country data...</p></div>
 
+  const showSearch = !embedMode || embedMode === 'country-cities'
+  const showCountryChart = (!embedMode || embedMode === 'countries') && mode === 'by_country'
+  const showRegionChart = (!embedMode || embedMode === 'regions') && mode === 'by_continent'
+
   return (
     <div style={{ padding: '1rem' }}>
-      <h2 style={{ marginBottom: '1rem' }}>Origins</h2>
+      {!embedMode && <h2 style={{ marginBottom: '1rem' }}>Origins</h2>}
 
-      <section
+      {showSearch && <section
         style={{
           background: '#fcf4ff',
           border: '1px solid #edd4f5',
@@ -302,18 +337,26 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
         <p style={{ color: '#454545', margin: '0 0 0.5rem', maxWidth: '46rem' }}>
           Type a country, such as Cambodia. The chart ranks Massachusetts places by how many residents were born there.
         </p>
+        {embedMode ? (
+          <p style={{ color: '#454545', margin: '0 0 1rem', maxWidth: '46rem' }}>
+            {searchScopeCities
+              ? `This chart is limited to ${searchScopeCities.size === 1 ? [...searchScopeCities][0] : `${searchScopeCities.size} places`}.`
+              : 'With no places named in the page address, the chart covers the state. Show Gateway Only and Show top change how many places appear.'}
+          </p>
+        ) : (
         <ul style={{ color: '#454545', margin: '0 0 1rem', paddingLeft: '1.15rem', maxWidth: '46rem', lineHeight: 1.45 }}>
           <li>
             Filter Cities on the left applies here, including places you selected on Overview or another tab.
           </li>
           <li>
-            With no places selected, the chart covers the state. Show Gateway Only then limits it to Gateway Cities, and Show top sets how many places appear.
+            Gateway Cities and Other Municipalities limit this chart to that group. With neither selected, the chart covers the state. Show Gateway Only and Show top change how many places appear.
           </li>
           <li>
             To compare a country across Massachusetts, click × on a selected place, or click Clear all.
           </li>
         </ul>
-        {searchScopeCities && (
+        )}
+        {searchScopeCities && !embedMode && (
           <p
             style={{
               color: '#361247',
@@ -325,10 +368,13 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
               maxWidth: '46rem',
             }}
           >
-            {searchScopeCities.size === 1
-              ? `Only ${[...searchScopeCities][0]} is shown because that place is selected in Filter Cities. The selection stays when you change tabs.`
-              : `Only the ${searchScopeCities.size} places selected in Filter Cities are shown. That selection stays when you change tabs.`}
-            {' '}Remove {searchScopeCities.size === 1 ? 'that place' : 'those places'}, or click Clear all, to see this country across the state.
+            {selectedCities.filter((city) => city !== 'Statewide').length === 0 && placeTypeFilter === 'gateway'
+              ? 'Limited to Gateway Cities. Click that button again, or Clear all, to see the whole state.'
+              : selectedCities.filter((city) => city !== 'Statewide').length === 0 && placeTypeFilter === 'other'
+                ? 'Limited to other municipalities. Click that button again, or Clear all, to see the whole state.'
+                : searchScopeCities.size === 1
+                  ? `Only ${[...searchScopeCities][0]} is shown because that place is selected in Filter Cities. The selection stays when you change tabs. Remove that place, or click Clear all, to see this country across the state.`
+                  : `Only the ${searchScopeCities.size} places selected in Filter Cities are shown. That selection stays when you change tabs. Remove those places, or click Clear all, to see this country across the state.`}
           </p>
         )}
 
@@ -437,8 +483,9 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
         ) : (
           <p style={{ color: '#6f6f6f', margin: 0 }}>Start typing a country name to see the cities with the largest populations.</p>
         )}
-      </section>
+      </section>}
 
+      {!embedMode && (
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         {[['by_country', 'By Country'], ['by_continent', 'By Region']].map(([val, label]) => (
           <button
@@ -458,9 +505,10 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
           </button>
         ))}
       </div>
+      )}
 
       {/* ── By Country ── */}
-      {mode === 'by_country' && (
+      {showCountryChart && (
         <>
           {/* Top N chart for selected city */}
           <div style={{ marginBottom: '2.5rem' }}>
@@ -519,7 +567,7 @@ export default function CountryOrigins({ selectedCities = [], allCities = [] }) 
       )}
 
       {/* ── By Region ── */}
-      {mode === 'by_continent' && (
+      {showRegionChart && (
         <>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
             {selectedCities.filter(c => c !== 'Statewide').length > 1 && (

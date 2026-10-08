@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+from urllib.request import Request, urlopen
 import pandas as pd
 import numpy as np
 
@@ -32,7 +33,6 @@ CITY_TYPE_OVERRIDES = {
 GATEWAY_CITIES = {
     "Attleboro",
     "Barnstable",
-    "Barnstable Town",
     "Brockton",
     "Chelsea",
     "Chicopee",
@@ -70,10 +70,16 @@ def load_year(table: str, year: int) -> pd.DataFrame | None:
 
 
 def load_all_years(table: str, years: list[int]) -> pd.DataFrame:
-    frames = [load_year(table, y) for y in years]
-    frames = [f for f in frames if f is not None]
-    if not frames:
-        raise FileNotFoundError(f"No interim files found for table {table}")
+    frames = []
+    missing = []
+    for year in years:
+        frame = load_year(table, year)
+        if frame is None:
+            missing.append(year)
+        else:
+            frames.append(frame)
+    if missing:
+        raise FileNotFoundError(f"No interim file for {table} in {missing}")
     return pd.concat(frames, ignore_index=True)
 
 
@@ -98,6 +104,8 @@ def add_city_type(df: pd.DataFrame) -> pd.DataFrame:
     # Extract clean city name from NAME field e.g. "Lowell city, Massachusetts"
     if "city" not in df.columns:
         df["city"] = df["NAME"].str.replace(r"\s+(city|town|CDP).*", "", regex=True).str.strip()
+        # "Barnstable Town city, ..." leaves the word Town behind. The town is Barnstable.
+        df["city"] = df["city"].str.replace(r" Town$", "", regex=True)
 
     # Tag the statewide row first (GEO_ID starts with 0400000US) so it
     # won't be overwritten by the city-level loop below.
@@ -137,8 +145,6 @@ def build_foreign_born_core(years):
     return out
 
 
-import requests
-
 def _census_api_key() -> str:
     if os.environ.get("CENSUS_API_KEY"):
         return os.environ["CENSUS_API_KEY"]
@@ -153,6 +159,15 @@ def _census_api_key() -> str:
         if key.strip() == "CENSUS_API_KEY":
             return value.strip().strip('"').strip("'")
     return ""
+
+
+def _get_json(url: str) -> dict:
+    api_key = _census_api_key()
+    if api_key:
+        url = f"{url}?key={api_key}"
+    request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urlopen(request, timeout=60) as response:
+        return json.loads(response.read())
 
 
 def _label_path(label: str) -> tuple[str, ...]:
@@ -183,28 +198,16 @@ def _origin_region_from_path(path: tuple[str, ...]) -> str:
 
 
 def get_country_map(year: int = 2024) -> dict:
-    """Fetch non-overlapping B05006 place-of-birth variables."""
-    raw_path = Path(f"data/raw/ACSDT5Y{year}.B05006-Data.csv")
-    fallback_raw_path = Path("data/raw/ACSDT5Y2024.B05006-Data.csv")
-    if not raw_path.exists() and year >= 2022 and fallback_raw_path.exists():
-        raw_path = fallback_raw_path
+    """Fetch non-overlapping B05006 place-of-birth variables for this year.
 
-    if raw_path.exists():
-        label_row = pd.read_csv(raw_path, nrows=1)
-        variables = {
-            col: {"label": str(label_row.loc[0, col])}
-            for col in label_row.columns
-        }
-    else:
-        api_key = _census_api_key()
-        params = {"key": api_key} if api_key else None
-        r = requests.get(
-            f"https://api.census.gov/data/{year}/acs/acs5/groups/B05006.json",
-            params=params,
-            timeout=30
-        )
-        r.raise_for_status()
-        variables = r.json()["variables"]
+    Variable numbers change between ACS releases (Cambodia is B05006_069E in
+    2021 and B05006_070E from 2022 on). Labels have to come from the same
+    year as the estimates.
+    """
+    payload = _get_json(f"https://api.census.gov/data/{year}/acs/acs5/groups/B05006.json")
+    if "variables" not in payload:
+        raise RuntimeError(f"B05006 variable list for {year} did not include labels")
+    variables = payload["variables"]
     candidates = {
         k: _label_path(v.get("label", ""))
         for k, v in variables.items()
@@ -251,12 +254,10 @@ def build_country_of_origin(years):
     for year in years:
         df = load_year("b05006", year)
         if df is None:
-            continue
-        try:
-            country_map = get_country_map(year)
-        except (requests.RequestException, json.JSONDecodeError, KeyError, ValueError) as exc:
-            print(f"  ! {year}: skipped B05006 labels ({exc})")
-            continue
+            raise FileNotFoundError(f"No interim b05006 file for {year}")
+        country_map = get_country_map(year)
+        if not country_map:
+            raise RuntimeError(f"{year}: B05006 label list was empty")
         print(f"  {year}: found {len(country_map)} non-overlapping place-of-birth variables")
         meta = meta_cols(df)
         available = {k: v for k, v in country_map.items() if k in df.columns}
@@ -382,6 +383,104 @@ def build_poverty(years):
     print(f"  ✓ {len(out)} rows")
 
 
+def _s0501_labels(year: int) -> dict[str, str]:
+    variables = _get_json(
+        f"https://api.census.gov/data/{year}/acs/acs5/subject/groups/S0501.json"
+    )["variables"]
+    return {
+        code: str(info.get("label", ""))
+        for code, info in variables.items()
+        if code.endswith("E") and not code.endswith("EA")
+    }
+
+
+def _is_foreign_born_estimate(label: str) -> bool:
+    parts = [part.strip() for part in label.split("!!")]
+    return len(parts) >= 2 and parts[0] == "Estimate" and parts[1] == "Foreign-born"
+
+
+def _one_column(labels: dict[str, str], columns: set[str], description: str, predicate) -> str:
+    matches = [
+        code for code, label in labels.items()
+        if code in columns and _is_foreign_born_estimate(label) and predicate(label)
+    ]
+    if len(matches) != 1:
+        raise RuntimeError(f"Expected one S0501 column for {description}, found {matches}")
+    return matches[0]
+
+
+def build_foreign_born_characteristics(years):
+    """Foreign-born education, tenure, and household income from S0501.
+
+    Educational attainment and housing tenure are published as percents in
+    S0501. If a release ever publishes counts instead, divide by the universe.
+    """
+    print("→ foreign_born_characteristics")
+    year = 2024 if 2024 in years else years[-1]
+    path = INTERIM / str(year) / "s0501.parquet"
+    if not path.exists():
+        raise FileNotFoundError(f"Missing {path}. Fetch S0501 before building characteristics.")
+
+    df = pd.read_parquet(path)
+    labels = _s0501_labels(year)
+    columns = set(df.columns)
+    bachelors_col = _one_column(
+        labels, columns, "bachelor's degree",
+        lambda label: label.endswith("Bachelor's degree") and "EDUCATIONAL ATTAINMENT" in label,
+    )
+    graduate_col = _one_column(
+        labels, columns, "graduate degree",
+        lambda label: label.endswith("Graduate or professional degree") and "EDUCATIONAL ATTAINMENT" in label,
+    )
+    educated_col = _one_column(
+        labels, columns, "population 25 and over",
+        lambda label: label.endswith("Population 25 years and over") and "EDUCATIONAL ATTAINMENT" in label,
+    )
+    owner_col = _one_column(
+        labels, columns, "owner-occupied",
+        lambda label: label.endswith("Owner-occupied housing units") and "HOUSING TENURE" in label,
+    )
+    occupied_col = _one_column(
+        labels, columns, "occupied housing units",
+        lambda label: label.endswith("Occupied housing units"),
+    )
+    income_col = _one_column(
+        labels, columns, "median household income",
+        lambda label: "Median Household income" in label,
+    )
+
+    meta = meta_cols(df)
+    out = df[meta].copy()
+    bachelors = num(df, bachelors_col)
+    graduate = num(df, graduate_col)
+    educated = num(df, educated_col)
+    owners = num(df, owner_col)
+    occupied = num(df, occupied_col)
+    state = df["GEO_ID"].astype(str).str.startswith("040")
+
+    if state.any() and pd.notna(bachelors[state].iloc[0]) and float(bachelors[state].iloc[0]) > 100:
+        out["fb_bachelors_pct"] = (bachelors + graduate) / educated * 100
+    else:
+        out["fb_bachelors_pct"] = bachelors + graduate
+
+    if state.any() and pd.notna(owners[state].iloc[0]) and float(owners[state].iloc[0]) > 100:
+        out["fb_homeownership_pct"] = owners / occupied * 100
+    else:
+        out["fb_homeownership_pct"] = owners
+
+    out["fb_median_household_income"] = num(df, income_col)
+    out = add_city_type(out)
+    out["fb_bachelors_pct"] = out["fb_bachelors_pct"].round(1)
+    out["fb_homeownership_pct"] = out["fb_homeownership_pct"].round(1)
+    out["fb_median_household_income"] = out["fb_median_household_income"].round(0)
+    keep = [c for c in [
+        "GEO_ID", "NAME", "city", "city_type", "year",
+        "fb_bachelors_pct", "fb_homeownership_pct", "fb_median_household_income",
+    ] if c in out.columns]
+    out[keep].to_parquet(PROCESSED / "foreign_born_characteristics.parquet", index=False)
+    print(f"  ✓ {len(out)} rows")
+
+
 def build_cities_master(fb_df: pd.DataFrame):
     print("→ cities_master")
     # One row per (city, year) with key metrics joined
@@ -406,6 +505,7 @@ def main():
     build_employment_income(years)
     build_median_income(years)
     build_poverty(years)
+    build_foreign_born_characteristics(years)
     build_cities_master(fb)
 
     print("\n✅ All processed files written to data/processed/")

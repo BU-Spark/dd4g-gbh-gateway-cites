@@ -1,18 +1,18 @@
 import { useEffect, useState, useMemo } from 'react'
-import { fetchCountryNames, fetchCountryTrend, fetchTimeSeries } from '../api/cities'
+import { fetchCountryNames, fetchOriginTrend } from '../api/cities'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, ReferenceLine, ErrorBar,
+  CartesianGrid, ReferenceLine,
 } from 'recharts'
 
-const METRICS = [
-  { key: 'fb_pct', label: 'Foreign-Born %', format: '%' },
-  { key: 'unemployment_rate', label: 'Unemployment Rate', format: '%' },
-  { key: 'median_income', label: 'Median Household Income', format: '$' },
-  { key: 'poverty_rate', label: 'Poverty Rate', format: '%' },
-  { key: 'bachelors_pct', label: "Bachelor's degree or higher %", format: '%' },
-  { key: 'homeownership_pct', label: 'Homeownership %', format: '%' },
-  { key: 'fb_income', label: 'Foreign-Born Median Income', format: '$' },
+const ORIGINS = [
+  { key: 'all', label: 'All foreign-born' },
+  { key: 'Europe', label: 'Europe' },
+  { key: 'Asia', label: 'Asia' },
+  { key: 'Africa', label: 'Africa' },
+  { key: 'Latin America', label: 'Latin America' },
+  { key: 'Northern America', label: 'Northern America' },
+  { key: 'Oceania', label: 'Oceania' },
 ]
 
 const CITY_COLORS = [
@@ -108,13 +108,24 @@ const downloadCSV = (filename, rows) => {
   URL.revokeObjectURL(url)
 }
 
-export default function TrendsView({ selectedCities }) {
-  const [metric, setMetric] = useState('fb_pct')
+export default function TrendsView({
+  selectedCities,
+  embedMode,
+  initialMetric,
+  initialCountry = '',
+  placeTypeFilter = 'all',
+  allCities = [],
+}) {
+  const [origin, setOrigin] = useState(
+    ORIGINS.some((item) => item.key === initialMetric) ? initialMetric : 'all',
+  )
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(false)
-  const [cityFilter, setCityFilter] = useState('selected') // 'selected' | 'gateway' | 'all'
+  const [cityFilter, setCityFilter] = useState(
+    embedMode && selectedCities.length === 0 ? 'gateway' : 'selected',
+  )
   const [countryNames, setCountryNames] = useState([])
-  const [countryQuery, setCountryQuery] = useState('')
+  const [countryQuery, setCountryQuery] = useState(embedMode === 'country' ? initialCountry : '')
   const [countryMenuOpen, setCountryMenuOpen] = useState(false)
 
   const matchedCountry = useMemo(() => {
@@ -123,12 +134,28 @@ export default function TrendsView({ selectedCities }) {
     return countryNames.find((name) => name.toLowerCase() === query) || ''
   }, [countryQuery, countryNames])
 
+  const typeCities = useMemo(() => {
+    if (placeTypeFilter !== 'gateway' && placeTypeFilter !== 'other') return []
+    return (allCities || [])
+      .filter((city) => city?.city_type === placeTypeFilter && city.city && city.city !== 'Statewide')
+      .map((city) => city.city)
+  }, [allCities, placeTypeFilter])
+
+  const sidebarKey = `${placeTypeFilter}|${selectedCities.join('\0')}`
+  useEffect(() => {
+    if (placeTypeFilter !== 'all' || selectedCities.length > 0) {
+      setCityFilter('selected')
+    }
+  }, [sidebarKey, placeTypeFilter, selectedCities])
+
   const activeCities = useMemo(() => {
-    if (cityFilter === 'selected' && selectedCities.length > 0) return selectedCities
     if (cityFilter === 'gateway') return GATEWAY_CITIES
-    if (matchedCountry && cityFilter === 'selected') return []
+    if (cityFilter === 'all') return null
+    if (selectedCities.length > 0) return selectedCities
+    if (typeCities.length > 0) return typeCities
+    if (matchedCountry) return []
     return null
-  }, [cityFilter, selectedCities, matchedCountry])
+  }, [cityFilter, selectedCities, matchedCountry, typeCities])
 
   const countrySuggestions = useMemo(() => {
     const query = countryQuery.trim().toLowerCase()
@@ -145,11 +172,13 @@ export default function TrendsView({ selectedCities }) {
   }, [])
 
   useEffect(() => {
-    if (matchedCountry) return undefined
     setLoading(true)
-    fetchTimeSeries({ metric })
+    const request = matchedCountry
+      ? fetchOriginTrend({ country: matchedCountry })
+      : fetchOriginTrend(origin === 'all' ? {} : { region: origin })
+    request
       .then((rows) => {
-        setData(rows)
+        setData(Array.isArray(rows) ? rows : [])
         setLoading(false)
       })
       .catch((err) => {
@@ -157,22 +186,7 @@ export default function TrendsView({ selectedCities }) {
         setLoading(false)
       })
     return undefined
-  }, [metric, matchedCountry])
-
-  useEffect(() => {
-    if (!matchedCountry) return undefined
-    setLoading(true)
-    fetchCountryTrend(matchedCountry)
-      .then((rows) => {
-        setData(Array.isArray(rows) ? rows : [])
-        setLoading(false)
-      })
-      .catch((err) => {
-        console.error('Failed to load country trend:', err)
-        setLoading(false)
-      })
-    return undefined
-  }, [matchedCountry])
+  }, [origin, matchedCountry])
 
   const chartData = useMemo(() => {
     let rows = data
@@ -214,10 +228,10 @@ export default function TrendsView({ selectedCities }) {
         return String(a.city).localeCompare(String(b.city))
       })
       .map((r) => ({
-        metric_key: matchedCountry ? 'country_of_origin' : metric,
+        metric_key: matchedCountry ? 'country_of_origin' : origin,
         metric_label: matchedCountry
           ? `Born in ${matchedCountry}`
-          : (METRICS.find((m) => m.key === metric)?.label || metric),
+          : (ORIGINS.find((item) => item.key === origin)?.label || origin),
         country: matchedCountry,
         city_filter: cityFilter,
         city: r.city,
@@ -225,24 +239,25 @@ export default function TrendsView({ selectedCities }) {
         value: r.value,
         margin_of_error: r.moe ?? '',
       }))
-  }, [data, activeCities, metric, cityFilter, matchedCountry])
+  }, [data, activeCities, origin, cityFilter, matchedCountry])
 
   useEffect(() => {
     const handleDownload = (event) => {
       if (event.detail?.tab !== 'Trends') return
       if (!exportRows.length) return
 
-      const metricSlug = (matchedCountry || metric).toLowerCase().replace(/\s+/g, '_')
+      const metricSlug = (matchedCountry || origin).toLowerCase().replace(/\s+/g, '_')
       downloadCSV(`trends_${metricSlug}.csv`, exportRows)
     }
 
     window.addEventListener('download-active-tab', handleDownload)
     return () => window.removeEventListener('download-active-tab', handleDownload)
-  }, [exportRows, metric, matchedCountry])
+  }, [exportRows, origin, matchedCountry])
 
-  const metaObj = METRICS.find((m) => m.key === metric) || METRICS[0]
-  const valueFormat = matchedCountry ? 'count' : metaObj.format
-  const hasMargins = chartData.some((row) => Object.keys(row).some((key) => key.endsWith('__moe')))
+  const valueFormat = 'count'
+  const seriesLabel = matchedCountry
+    ? `Born in ${matchedCountry}`
+    : (ORIGINS.find((item) => item.key === origin)?.label || 'All foreign-born')
 
   const formatValue = (v) => {
     if (v == null || v === '') return '—'
@@ -263,8 +278,9 @@ export default function TrendsView({ selectedCities }) {
 
   return (
     <div style={{ padding: '1rem' }}>
-      <h2 style={{ marginBottom: '1rem' }}>Trends (2012–2024)</h2>
+      {!embedMode && <h2 style={{ marginBottom: '1rem' }}>{seriesLabel}, 2012–2024</h2>}
 
+      {embedMode !== 'metric' && (
       <div style={{ position: 'relative', maxWidth: '520px', marginBottom: '1rem', zIndex: 20 }}>
         <label htmlFor="trend-country-search" style={{ color: '#361247', fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
           Country of origin
@@ -333,15 +349,21 @@ export default function TrendsView({ selectedCities }) {
         <p style={{ color: '#6f6f6f', fontSize: '0.82rem', margin: '0.45rem 0 0' }}>
           {matchedCountry
             ? `Showing how many residents were born in ${matchedCountry}, from 2012 to 2024.`
-            : 'Search a country to see how that population has changed. Leave this blank to use the metric below.'}
+            : origin === 'all'
+              ? 'Showing how many foreign-born residents live in each place, from 2012 to 2024. Search a country to look at one place of birth.'
+              : `Showing how many residents were born in ${origin}, from 2012 to 2024. Search a country to look at one place of birth.`}
           {matchedCountry && cityFilter === 'selected' && selectedCities.length > 0
-            ? ` Limited to ${selectedCities.filter((city) => city !== 'Statewide').join(', ')} from Filter Cities.`
+            ? ` Limited to ${selectedCities.filter((city) => city !== 'Statewide').join(', ')}.`
             : ''}
-          {matchedCountry && cityFilter === 'selected' && selectedCities.length === 0
-            ? ' Choose All Gateway Cities, or select places in Filter Cities, to draw the lines.'
+          {matchedCountry && cityFilter === 'selected' && selectedCities.length === 0 && typeCities.length > 0
+            ? ` Limited to ${placeTypeFilter === 'gateway' ? 'Gateway Cities' : 'other municipalities'}.`
+            : ''}
+          {matchedCountry && cityFilter === 'selected' && selectedCities.length === 0 && typeCities.length === 0
+            ? ' Choose All Gateway Cities to draw the lines.'
             : ''}
         </p>
       </div>
+      )}
 
       <div
         style={{
@@ -352,16 +374,19 @@ export default function TrendsView({ selectedCities }) {
           alignItems: 'flex-end',
         }}
       >
+        {embedMode !== 'country' && (
         <div>
-          <label style={{ color: '#6f6f6f', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
-            Metric
+          <label htmlFor="trend-origin" style={{ color: '#6f6f6f', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
+            Place of birth
           </label>
           <select
-            value={metric}
+            id="trend-origin"
+            value={origin}
             onChange={(e) => {
-              setMetric(e.target.value)
+              setOrigin(e.target.value)
               setCountryQuery('')
             }}
+            disabled={Boolean(matchedCountry)}
             style={{
               background: '#ffffff',
               color: '#373737',
@@ -370,11 +395,12 @@ export default function TrendsView({ selectedCities }) {
               padding: '0.4rem 0.6rem',
             }}
           >
-            {METRICS.map((m) => (
-              <option key={m.key} value={m.key}>{m.label}</option>
+            {ORIGINS.map((item) => (
+              <option key={item.key} value={item.key}>{item.label}</option>
             ))}
           </select>
         </div>
+        )}
 
         <div>
           <label style={{ color: '#6f6f6f', fontSize: '0.8rem', display: 'block', marginBottom: '4px' }}>
@@ -382,14 +408,14 @@ export default function TrendsView({ selectedCities }) {
           </label>
           <div style={{ display: 'flex', gap: '0.4rem' }}>
             {[
-              ['selected', `Selected (${selectedCities.length})`],
+              ['selected', `Selected (${selectedCities.length > 0 ? selectedCities.length : typeCities.length})`],
               ['gateway', 'All Gateway Cities'],
-              ['all', 'All MA County Subdivisions'],
+              ['all', 'All MA Towns and Cities'],
             ].map(([val, label]) => (
               <button
                 key={val}
                 onClick={() => setCityFilter(val)}
-                disabled={val === 'selected' && selectedCities.length === 0}
+                disabled={val === 'selected' && selectedCities.length === 0 && typeCities.length === 0}
                 style={{
                   padding: '0.35rem 0.85rem',
                   borderRadius: '6px',
@@ -398,7 +424,7 @@ export default function TrendsView({ selectedCities }) {
                   color: cityFilter === val ? '#fff' : '#6f6f6f',
                   border: cityFilter === val ? '1px solid #732487' : '1px solid #c2c2c2',
                   fontSize: '0.8rem',
-                  opacity: val === 'selected' && selectedCities.length === 0 ? 0.4 : 1,
+                  opacity: val === 'selected' && selectedCities.length === 0 && typeCities.length === 0 ? 0.4 : 1,
                 }}
               >
                 {label}
@@ -414,19 +440,17 @@ export default function TrendsView({ selectedCities }) {
         <>
           {cityFilter === 'all' && (
             <p style={{ color: '#bf0f0f', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
-              ⚠️ Showing all MA county subdivisions — select specific cities for a cleaner view
+              Showing all MA towns and cities. Select specific cities for a cleaner view.
+            </p>
+          )}
+          {cityFilter === 'selected' && (selectedCities.length > 0 || typeCities.length > 0) && cities.length > 40 && (
+            <p style={{ color: '#6f6f6f', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+              Showing {cities.length} places from the sidebar filter. Pick individual cities for a cleaner view.
             </p>
           )}
           <p style={{ color: '#676767', fontSize: '0.75rem', marginBottom: '0.35rem' }}>
             ⚠️ 2020 data reflects COVID-19 nonresponse bias — interpret with caution
           </p>
-          {hasMargins && (
-            <p style={{ color: '#6f6f6f', fontSize: '0.8rem', marginBottom: '1rem' }}>
-              {cities.length <= 40
-                ? 'Vertical bars show the margin of error around each point.'
-                : 'Margins of error are listed in the tooltip. Choose fewer places to draw them on the chart.'}
-            </p>
-          )}
           <ResponsiveContainer width="100%" height={480}>
             <LineChart data={chartData} margin={{ top: 8, right: 120, left: 16, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e6e6e6" />
@@ -487,21 +511,11 @@ export default function TrendsView({ selectedCities }) {
                       </text>
                     )
                   }}
-                >
-                  {cities.length <= 40 && (
-                    <ErrorBar
-                      dataKey={`${city}__moe`}
-                      width={5}
-                      stroke={cityColorMap[city]}
-                      strokeWidth={1.25}
-                      direction="y"
-                    />
-                  )}
-                </Line>
+                />
               ))}
             </LineChart>
           </ResponsiveContainer>
-          {cityFilter !== 'all' && (
+          {cityFilter !== 'all' && cities.length <= 40 && (
             <TrendsColorKey cities={cities} cityColorMap={cityColorMap} />
           )}
         </>
@@ -511,7 +525,7 @@ export default function TrendsView({ selectedCities }) {
         <div style={{ color: '#676767', padding: '2rem', textAlign: 'center' }}>
           {matchedCountry
             ? `No residents born in ${matchedCountry} for this geography. Try All Gateway Cities.`
-            : 'No data for selected cities/metric. Try "All Gateway Cities".'}
+            : 'No data for this place of birth. Try All Gateway Cities.'}
         </div>
       )}
     </div>

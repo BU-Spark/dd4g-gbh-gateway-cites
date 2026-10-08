@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
@@ -119,12 +119,27 @@ const OriginScopeBadge = () => (
   </span>
 )
 
-export default function CityProfile({ selectedCities }) {
-  const citiesToShow = selectedCities.length > 0
-    ? selectedCities.map((city) => (city === 'Statewide' ? DEFAULT_CITY : city))
-    : [DEFAULT_CITY]
+export default function CityProfile({
+  selectedCities,
+  embed = false,
+  placeTypeFilter = 'all',
+  allCities = [],
+}) {
+  const citiesToShow = useMemo(() => {
+    if (selectedCities.length > 0) {
+      return selectedCities.map((city) => (city === 'Statewide' ? DEFAULT_CITY : city))
+    }
+    if (placeTypeFilter === 'gateway' || placeTypeFilter === 'other') {
+      return allCities
+        .filter((city) => city.city_type === placeTypeFilter && city.city && city.city !== 'Statewide')
+        .map((city) => city.city)
+        .sort((a, b) => a.localeCompare(b))
+    }
+    return [DEFAULT_CITY]
+  }, [selectedCities, placeTypeFilter, allCities])
 
   const [profiles, setProfiles] = useState([])
+  const [groupSize, setGroupSize] = useState(0)
   const [stateBenchmark, setStateBenchmark] = useState(null)
   const [origins, setOrigins] = useState({})
   const [regionOrigins, setRegionOrigins] = useState({})
@@ -134,6 +149,66 @@ export default function CityProfile({ selectedCities }) {
   useEffect(() => {
     setLoading(true)
     setError(null)
+    let cancelled = false
+
+    const applyProfiles = (profs, origs, regionOrigs, state) => {
+      if (cancelled) return
+      setGroupSize(profs.length)
+      const shown = profs.length > 30
+        ? [...profs].sort((a, b) => (Number(b.fb_pct) || 0) - (Number(a.fb_pct) || 0)).slice(0, 15)
+        : profs
+      setProfiles(shown)
+      setOrigins(origs)
+      setRegionOrigins(regionOrigs)
+      setStateBenchmark({
+        fb_pct: state?.fb_pct,
+        fb_bachelors_pct: state?.fb_bachelors_pct,
+        fb_homeownership_pct: state?.fb_homeownership_pct,
+        fb_median_household_income: state?.fb_median_household_income,
+        median_income_foreign_born: state?.median_income_foreign_born,
+        year: state?.year,
+      })
+      setLoading(false)
+    }
+
+    if (citiesToShow.length > 30 && !citiesToShow.includes(STATEWIDE_KEY)) {
+      const wanted = new Set(citiesToShow)
+      Promise.all([
+        fetchForeignBorn(),
+        fetchForeignBornCharacteristics(),
+        fetchMedianIncome(),
+        fetchStateProfile(),
+      ])
+        .then(([fbRows, charRows, medRows, state]) => {
+          const fbByCity = new Map((fbRows || []).map((row) => [row.city, row]))
+          const charByCity = new Map((charRows || []).map((row) => [row.city, row]))
+          const medByCity = new Map((medRows || []).map((row) => [row.city, row]))
+          const profs = citiesToShow
+            .filter((city) => wanted.has(city))
+            .map((city) => {
+              const fbRow = fbByCity.get(city) || {}
+              const charRow = charByCity.get(city) || {}
+              const medRow = medByCity.get(city) || {}
+              return {
+                city,
+                city_type: fbRow.city_type || charRow.city_type || 'other',
+                fb_pct: fbRow.fb_pct,
+                fb_bachelors_pct: charRow.fb_bachelors_pct,
+                fb_homeownership_pct: charRow.fb_homeownership_pct,
+                fb_median_household_income: charRow.fb_median_household_income,
+                median_income_foreign_born: medRow.median_income_foreign_born,
+              }
+            })
+          applyProfiles(profs, {}, {}, state)
+        })
+        .catch((err) => {
+          if (cancelled) return
+          console.error('Failed to load city profile:', err)
+          setError(err?.message || 'Failed to load Overview data')
+          setLoading(false)
+        })
+      return () => { cancelled = true }
+    }
 
     const buildOriginBreakdowns = (orig) => {
       const originRows = (orig || [])
@@ -234,25 +309,16 @@ export default function CityProfile({ selectedCities }) {
           regionOrigs[r.profile.city] = r.regions
         })
 
-        setProfiles(profs)
-        setOrigins(origs)
-        setRegionOrigins(regionOrigs)
-        setStateBenchmark({
-          fb_pct: state?.fb_pct,
-          fb_bachelors_pct: state?.fb_bachelors_pct,
-          fb_homeownership_pct: state?.fb_homeownership_pct,
-          fb_median_household_income: state?.fb_median_household_income,
-          median_income_foreign_born: state?.median_income_foreign_born,
-          year: state?.year,
-        })
-        setLoading(false)
+        applyProfiles(profs, origs, regionOrigs, state)
       })
       .catch((err) => {
+        if (cancelled) return
         console.error('Failed to load city profile:', err)
         setError(err?.message || 'Failed to load Overview data')
         setLoading(false)
       })
-  }, [citiesToShow.join(',')])
+    return () => { cancelled = true }
+  }, [citiesToShow])
 
   useEffect(() => {
     const handleDownload = (event) => {
@@ -339,7 +405,7 @@ export default function CityProfile({ selectedCities }) {
                       fontSize: '0.9rem', color: '#6f6f6f', marginTop: '0.5rem',
                       borderTop: '1px solid #edd4f5', paddingTop: '0.5rem',
                     }}>
-                      <span>MA Statewide: {formatVal(stVal, s.format)}</span>
+                      <span>MA Statewide (foreign-born): {formatVal(stVal, s.format)}</span>
                       {diff != null && (
                         <span style={{
                           marginLeft: '0.5rem',
@@ -358,7 +424,7 @@ export default function CityProfile({ selectedCities }) {
             })}
           </div>
 
-          {origins[profile.city]?.length > 0 && (
+          {!embed && origins[profile.city]?.length > 0 && (
             <>
               <h3 style={{ marginBottom: '0.75rem' }}>
                 Top Countries of Origin
@@ -386,7 +452,7 @@ export default function CityProfile({ selectedCities }) {
             </>
           )}
 
-          {regionOrigins[profile.city]?.length > 0 && (
+          {!embed && regionOrigins[profile.city]?.length > 0 && (
             <>
               <h3 style={{ marginBottom: '0.75rem', marginTop: '2rem' }}>
                 Regions of Origin
@@ -416,9 +482,15 @@ export default function CityProfile({ selectedCities }) {
         </>
       ) : (
         <>
-          <h2 style={{ marginBottom: '0.25rem' }}>City Comparison</h2>
+          <h2 style={{ marginBottom: '0.25rem' }}>
+            {groupSize > profiles.length
+              ? (placeTypeFilter === 'other' ? 'Other municipalities' : 'Gateway Cities')
+              : 'City Comparison'}
+          </h2>
           <p style={{ color: '#6f6f6f', marginBottom: '1.5rem' }}>
-            {profiles.map((p) => p.city).join(' vs ')}
+            {groupSize > profiles.length
+              ? `Top ${profiles.length} of ${groupSize} places in this filter, ranked by foreign-born share.`
+              : profiles.map((p) => p.city).join(' vs ')}
           </p>
 
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
@@ -447,7 +519,7 @@ export default function CityProfile({ selectedCities }) {
                     </th>
                   ))}
                   {stateBenchmark && (
-                    <th style={{ textAlign: 'right', padding: '0.75rem 0.5rem', color: '#6f6f6f' }}>MA Statewide</th>
+                    <th style={{ textAlign: 'right', padding: '0.75rem 0.5rem', color: '#6f6f6f' }}>MA Statewide (foreign-born)</th>
                   )}
                 </tr>
               </thead>

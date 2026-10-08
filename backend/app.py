@@ -50,6 +50,12 @@ def country_trend():
     country = request.args.get("country", "")
     return jsonify(data_store.get_country_trend(country))
 
+@app.get("/api/origin-trend")
+def origin_trend():
+    country = request.args.get("country", "")
+    region = request.args.get("region", "")
+    return jsonify(data_store.get_origin_trend(country=country, region=region))
+
 @app.get("/api/continent-trend")
 def continent_trend():
     scope = request.args.get("scope", "state")

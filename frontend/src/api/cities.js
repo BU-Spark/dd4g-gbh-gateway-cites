@@ -39,29 +39,18 @@ export function clearApiCache() {
 }
 
 export function prefetchDashboardData() {
-  const commonMetrics = [
-    "fb_pct",
-    "unemployment_rate",
-    "median_income",
-    "poverty_rate",
-    "bachelors_pct",
-    "homeownership_pct",
-    "fb_income",
-  ];
-
   const requests = [
     fetchCities(),
     fetchForeignBorn(),
-    fetchEducation(),
-    fetchEmploymentIncome(),
-    fetchHomeownership(),
+    fetchForeignBornCharacteristics(),
     fetchMedianIncome(),
     fetchStateProfile(),
     fetchStateAverages(),
     fetchStateCountryOfOrigin(),
     fetchContinentTrend("state"),
     fetchContinentTrend("gateway"),
-    ...commonMetrics.map((metric) => fetchTimeSeries({ metric })),
+    fetchCountryNames(),
+    fetchOriginTrend(),
   ];
 
   return Promise.allSettled(requests);
@@ -130,6 +119,14 @@ export async function fetchCountryTrend(country) {
   const params = new URLSearchParams();
   if (country) params.set("country", country);
   return fetchJson(`/api/country-trend?${params.toString()}`);
+}
+
+export async function fetchOriginTrend({ country, region } = {}) {
+  const params = new URLSearchParams();
+  if (country) params.set("country", country);
+  if (region) params.set("region", region);
+  const query = params.toString();
+  return fetchJson(`/api/origin-trend${query ? `?${query}` : ""}`);
 }
 
 export async function fetchTimeSeries({ city, metric } = {}) {

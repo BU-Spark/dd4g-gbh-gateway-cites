@@ -58,8 +58,8 @@ export default function InstructionsModal({ onClose }) {
               <li>How large the foreign-born population is, and how that share has changed</li>
               <li>Which countries and regions people came from</li>
               <li>
-                How income, unemployment, poverty, education, and homeownership
-                compare across places, including some measures for foreign-born residents
+                How income, education, and homeownership
+                compare across places for foreign-born residents
               </li>
             </ul>
             <p>
@@ -81,9 +81,10 @@ export default function InstructionsModal({ onClose }) {
                 name in the search list.
               </li>
               <li>
-                Click Gateway Cities to select all of them at once. Click it
-                again to clear that selection. Click Other Municipalities to
-                show only those places in the search list.
+                Click Gateway Cities to limit every chart to those places.
+                Click Other Municipalities to limit every chart to the other
+                Massachusetts municipalities. Click the active button again to
+                clear that filter. The search list follows the same choice.
               </li>
               <li>
                 Type in Search cities, then click a name to add it. Selected
@@ -91,10 +92,10 @@ export default function InstructionsModal({ onClose }) {
               </li>
               <li>Click × on a tag to remove that place, or Clear all to start over.</li>
               <li>
-                With nothing selected, Overview shows Massachusetts statewide.
-                City Metrics shows every place. On Trends, choose All Gateway
-                Cities or All MA County Subdivisions until you have picked
-                places for Selected.
+                With no filter and nothing selected, Overview shows Massachusetts
+                statewide and City Metrics shows every place. Turning on Gateway
+                Cities or Other Municipalities changes Overview, City Metrics,
+                Origins, and Trends.
               </li>
               <li>
                 After you select places, Overview compares them, and City Metrics

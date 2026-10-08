@@ -7,6 +7,7 @@ import CountryOrigins from "./components/CountryOrigins";
 import TrendsView from "./components/TrendsView";
 import ChatBot from "./components/ChatBot";
 import InstructionsModal from "./components/InstructionsModal";
+import EmbedFrame, { readEmbedSearch } from "./components/EmbedFrame";
 import {
   fetchCities,
   prefetchDashboardData,
@@ -62,6 +63,7 @@ export default function App() {
   const [searchFocused, setSearchFocused] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
   const [placeTypeFilter, setPlaceTypeFilter] = useState("all");
+  const embedQuery = useMemo(() => readEmbedSearch(), []);
 
   useEffect(() => {
     fetchCities()
@@ -106,34 +108,14 @@ export default function App() {
     );
   };
 
-  const gatewayCityNames = useMemo(
-    () =>
-      cities
-        .filter((c) => c.city_type === "gateway")
-        .map((c) => c.city)
-        .sort((a, b) => a.localeCompare(b)),
-    [cities],
-  );
-
-  const gatewaySelectionActive =
-    placeTypeFilter === "gateway" &&
-    gatewayCityNames.length > 0 &&
-    selectedCities.length === gatewayCityNames.length &&
-    gatewayCityNames.every((city) => selectedCities.includes(city));
-
   const togglePlaceType = (type) => {
-    if (type === "gateway") {
-      if (gatewaySelectionActive) {
-        setPlaceTypeFilter("all");
-        setSelectedCities([]);
-        return;
-      }
-      setPlaceTypeFilter("gateway");
-      setSelectedCities(gatewayCityNames);
-      return;
-    }
-
+    setSelectedCities([]);
     setPlaceTypeFilter((current) => (current === type ? "all" : type));
+  };
+
+  const clearFilters = () => {
+    setSelectedCities([]);
+    setPlaceTypeFilter("all");
   };
 
   const filteredCities = useMemo(() => {
@@ -167,6 +149,14 @@ export default function App() {
 
   if (loading) return <div className="loading">Loading...</div>;
 
+  if (embedQuery) {
+    return (
+      <div className="app">
+        <EmbedFrame query={embedQuery} cities={cities} />
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header className="header">
@@ -187,8 +177,8 @@ export default function App() {
           <div className="city-type-group">
             <button
               type="button"
-              className={`type-filter-btn gateway ${gatewaySelectionActive ? "active" : ""}`}
-              aria-pressed={gatewaySelectionActive}
+              className={`type-filter-btn gateway ${placeTypeFilter === "gateway" ? "active" : ""}`}
+              aria-pressed={placeTypeFilter === "gateway"}
               onClick={() => togglePlaceType("gateway")}
             >
               <span className="search-dot gateway">●</span>
@@ -253,8 +243,27 @@ export default function App() {
             )}
           </div>
 
-          {selectedCities.length > 0 && (
+          {(selectedCities.length > 0 || placeTypeFilter !== "all") && (
             <div className="selected-cities-list">
+              {selectedCities.length === 0 && (
+                <div className="selected-city-tag">
+                  <span
+                    className={`search-dot ${placeTypeFilter === "gateway" ? "gateway" : "other"}`}
+                  >
+                    ●
+                  </span>
+                  <span className="selected-city-name">
+                    {placeTypeFilter === "gateway" ? "Gateway Cities" : "Other municipalities"}
+                  </span>
+                  <button
+                    className="selected-city-remove"
+                    onClick={() => setPlaceTypeFilter("all")}
+                    aria-label="Clear place filter"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
               {selectedCities.map((city) => {
                 const cityData = cities.find((c) => c.city === city);
                 return (
@@ -278,7 +287,7 @@ export default function App() {
 
               <button
                 className="clear-btn"
-                onClick={() => setSelectedCities([])}
+                onClick={clearFilters}
               >
                 Clear all
               </button>
@@ -324,23 +333,33 @@ export default function App() {
           {activeTab === "City Metrics" && (
             <PerCapitaComparison
               selectedCities={selectedCities}
+              placeTypeFilter={placeTypeFilter}
               allCities={cities}
             />
           )}
 
           {activeTab === "Overview" && (
-            <CityProfile selectedCities={selectedCities} />
+            <CityProfile
+              selectedCities={selectedCities}
+              placeTypeFilter={placeTypeFilter}
+              allCities={cities}
+            />
           )}
 
           {activeTab === "Origins" && (
             <CountryOrigins
               selectedCities={selectedCities}
+              placeTypeFilter={placeTypeFilter}
               allCities={cities}
             />
           )}
 
           {activeTab === "Trends" && (
-            <TrendsView selectedCities={selectedCities} />
+            <TrendsView
+              selectedCities={selectedCities}
+              placeTypeFilter={placeTypeFilter}
+              allCities={cities}
+            />
           )}
         </main>
       </div>

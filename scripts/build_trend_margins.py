@@ -75,10 +75,12 @@ def _num(value) -> float | None:
 
 def _normalize_geoid(raw: str) -> str | None:
     geo = str(raw).strip().strip('"')
-    if geo.startswith("1600000US25") or geo.startswith("0400000US25"):
+    if geo.startswith(("1600000US25", "0600000US25", "0400000US25")):
         return geo
     if geo.startswith("16000US25"):
         return "1600000US" + geo[len("16000US"):]
+    if geo.startswith("06000US25"):
+        return "0600000US" + geo[len("06000US"):]
     if geo.startswith("04000US25"):
         return "0400000US" + geo[len("04000US"):]
     return None
@@ -109,7 +111,10 @@ def _geo_logrecno(path: Path) -> dict[str, str]:
                 (
                     cell
                     for cell in row
-                    if cell.startswith(("16000US25", "04000US25", "1600000US25", "0400000US25"))
+                    if cell.startswith((
+                        "16000US25", "06000US25", "04000US25",
+                        "1600000US25", "0600000US25", "0400000US25",
+                    ))
                 ),
                 None,
             )
@@ -183,7 +188,7 @@ def _stream_table(year: int, table: str) -> pd.DataFrame:
         indexes = {name: header.index(name) for name in columns}
         for raw in response:
             line = raw.decode("latin1")
-            if not (line.startswith("1600000US25") or line.startswith("0400000US25")):
+            if not line.startswith(("1600000US25", "0600000US25", "0400000US25")):
                 continue
             parts = line.rstrip("\n").split("|")
             record = {"GEO_ID": parts[0], "year": year}
@@ -287,7 +292,47 @@ def _build_metrics(margins: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
+def _margins_from_interim() -> pd.DataFrame | None:
+    """Read margin columns already saved with the county-subdivision fetch."""
+    needed = ["b05002", "b05010", "b06011", "b15002", "b25003", "b19013", "b23025"]
+    frames = []
+    for year in range(2012, 2025):
+        pieces = []
+        for table in needed:
+            path = ROOT / "data" / "interim" / str(year) / f"{table}.parquet"
+            if not path.exists():
+                return None
+            frame = pd.read_parquet(path)
+            margin_cols = [column for column in frame.columns if column.endswith("M") and not column.endswith("MA")]
+            if "GEO_ID" not in frame.columns or not margin_cols:
+                return None
+            piece = frame[["GEO_ID", *margin_cols]].copy()
+            piece = piece.rename(columns={
+                column: f"{column.split('_')[0].lower()}_m{column.split('_')[1][:-1]}"
+                for column in margin_cols
+            })
+            for column in piece.columns:
+                if column != "GEO_ID":
+                    piece[column] = pd.to_numeric(piece[column], errors="coerce")
+            pieces.append(piece)
+        merged = pieces[0]
+        for piece in pieces[1:]:
+            merged = merged.merge(piece, on="GEO_ID", how="outer")
+        merged["year"] = year
+        frames.append(merged)
+        print(f"interim margins {year}: {len(merged)} places")
+    return pd.concat(frames, ignore_index=True)
+
+
 def main():
+    interim = _margins_from_interim()
+    if interim is not None:
+        metrics = _build_metrics(interim)
+        metrics.to_parquet(OUT, index=False)
+        print(f"wrote {len(metrics)} margins -> {OUT}")
+        print(metrics.groupby("metric").size())
+        return
+
     frames = []
     for year in SEQ_YEARS:
         print(f"sequence {year}")
