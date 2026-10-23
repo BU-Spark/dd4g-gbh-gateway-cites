@@ -28,6 +28,11 @@ export function readEmbedSearch(search = window.location.search) {
       .filter(Boolean),
     metric: (params.get('metric') || '').trim(),
     country: (params.get('country') || '').trim(),
+    communities: ((params.get('communities') || '').includes('|')
+      ? (params.get('communities') || '').split('|')
+      : (params.get('communities') || '').split(','))
+      .map((name) => name.trim())
+      .filter(Boolean),
   }
 }
 
@@ -48,6 +53,8 @@ function embedTitle(query) {
       return `${METRIC_LABELS[query.metric] || query.metric || 'Foreign-born population'}, 2012–2024`
     case 'country-trend':
       return query.country ? `Born in ${query.country}, 2012–2024` : 'Country of origin over time'
+    case 'community-trends':
+      return `Immigrant communities in ${query.city || 'Massachusetts'}, 2012–2024`
     default:
       return 'Chart'
   }
@@ -110,6 +117,16 @@ export default function EmbedFrame({ query, cities }) {
         initialCountry={query.country}
       />
     )
+  } else if (query.embed === 'community-trends') {
+    chart = (
+      <TrendsView
+        selectedCities={query.city ? [query.city] : []}
+        allCities={cities}
+        embedMode="communities"
+        initialGeography={query.city || 'Statewide'}
+        initialCommunities={query.communities}
+      />
+    )
   }
 
   return (
@@ -117,7 +134,7 @@ export default function EmbedFrame({ query, cities }) {
       <h1>{embedTitle(query)}</h1>
       {chart || (
         <p className="embed-missing">
-          This embed type is not available. Use place, metric, countries, regions, country-cities, trends, or country-trend.
+          This embed type is not available. Use place, metric, countries, regions, country-cities, trends, country-trend, or community-trends.
         </p>
       )}
       <p className="embed-source">{SOURCE_LINE}</p>

@@ -182,6 +182,209 @@ def get_country_trend(country: str):
     return get_origin_trend(country=country)
 
 
+COMMUNITY_REGIONS = (
+    "Africa",
+    "Asia",
+    "Europe",
+    "Latin America",
+    "Northern America",
+    "Oceania",
+)
+MAX_COMMUNITIES = 8
+TOP_COMMUNITIES = 5
+
+
+def _json_number(value):
+    if value is None or pd.isna(value):
+        return None
+    number = float(value)
+    if number.is_integer():
+        return int(number)
+    return number
+
+
+def _community_points(frame: pd.DataFrame, moe_by_year: dict | None = None) -> list:
+    """Annual estimates for one community. Leaf rows are already non-overlapping."""
+    if frame.empty:
+        return []
+    grouped = (
+        frame.groupby("year", dropna=False)["estimate"]
+        .sum()
+        .sort_index()
+    )
+    margins = moe_by_year or {}
+    return [
+        {
+            "year": int(year),
+            "value": _json_number(value),
+            "moe": _json_number(margins.get(int(year))),
+        }
+        for year, value in grouped.items()
+        if pd.notna(year)
+    ]
+
+
+def _margin_number(value):
+    number = pd.to_numeric(value, errors="coerce")
+    if pd.isna(number) or float(number) in BAD_VALUES or float(number) < 0:
+        return None
+    return float(number)
+
+
+@lru_cache(maxsize=64)
+def _origin_margins(geo_id: str) -> dict:
+    """Map country and estimate values to margins when a B05006 column is unique."""
+    interim_root = PROCESSED.parent / "interim"
+    frame = _country_rows()
+    frame = frame[frame["GEO_ID"].astype(str) == str(geo_id)]
+    by_country = {}
+    by_value = {}
+    for year, year_rows in frame.groupby("year"):
+        path = interim_root / str(int(year)) / "b05006.parquet"
+        if not path.exists():
+            continue
+        raw = pd.read_parquet(path)
+        matched = raw[raw["GEO_ID"].astype(str) == str(geo_id)]
+        if matched.empty:
+            continue
+        raw_row = matched.iloc[0]
+        margins_for_value = {}
+        for column in raw.columns:
+            code = str(column)
+            if not code.startswith("B05006_") or not code.endswith("E") or code.endswith("EA"):
+                continue
+            estimate = _margin_number(raw_row[column])
+            margin_column = code[:-1] + "M"
+            if estimate is None or margin_column not in raw.columns:
+                continue
+            margins_for_value.setdefault(estimate, []).append(_margin_number(raw_row[margin_column]))
+        for estimate, margins in margins_for_value.items():
+            if len(margins) == 1:
+                by_value[(int(year), estimate)] = margins[0]
+        for _, origin in year_rows.iterrows():
+            estimate = _margin_number(origin["estimate"])
+            margins = margins_for_value.get(estimate, [])
+            margin = margins[0] if len(margins) == 1 else None
+            by_country[(int(year), str(origin["country"]).casefold())] = margin
+    return {"countries": by_country, "values": by_value}
+
+
+def _region_margins(frame: pd.DataFrame, lookup: dict, value_lookup: dict | None = None) -> dict:
+    """Approximate a region's margin from its leaf-country margins."""
+    margins = {}
+    if frame.empty:
+        return margins
+    for year, year_rows in frame.groupby("year"):
+        squares = []
+        for country in year_rows["country"].astype(str):
+            margin = lookup.get((int(year), country.casefold()))
+            if margin is None:
+                squares = None
+                break
+            squares.append(float(margin) ** 2)
+        approximate = None if not squares else round(sum(squares) ** 0.5)
+        total = _margin_number(year_rows["estimate"].sum())
+        official = (value_lookup or {}).get((int(year), total))
+        margins[int(year)] = official if official is not None else approximate
+    return margins
+
+
+def get_community_trends(geography: str, communities: list[str] | None = None):
+    """Compare several origin communities inside one city or statewide.
+
+    With no communities, the series are the five largest countries of origin
+    in the latest year. A region series is the sum of that region's leaf
+    countries, which do not overlap in the processed place-of-birth file.
+    """
+    requested = str(geography or "").strip()
+    if not requested:
+        raise ValueError("A city or Statewide is required")
+
+    df = _country_rows()
+    if requested.casefold() in {"statewide", "massachusetts"}:
+        frame = df[df["city_type"] == "state"] if "city_type" in df.columns else df.iloc[0:0]
+        if frame.empty:
+            frame = df[df["city"].str.casefold() == "massachusetts"]
+        geography_name = "Statewide"
+    else:
+        frame = df[df["city"].str.casefold() == requested.casefold()]
+        if frame.empty:
+            raise LookupError(f"Unknown geography: {requested}")
+        geography_name = str(frame["city"].iloc[0])
+
+    if frame.empty:
+        raise LookupError(f"Unknown geography: {requested}")
+
+    known_countries = {
+        str(name).casefold(): str(name)
+        for name in df["country"].dropna().unique()
+        if str(name).strip()
+    }
+    known_regions = {name.casefold(): name for name in COMMUNITY_REGIONS}
+    using_defaults = not communities
+    selected = []
+    if using_defaults:
+        latest_year = frame["year"].max()
+        ranked = (
+            frame[frame["year"] == latest_year]
+            .groupby("country", dropna=False)["estimate"]
+            .sum()
+            .reset_index()
+            .sort_values(["estimate", "country"], ascending=[False, True])
+        )
+        selected = [
+            (str(name), "country")
+            for name in ranked["country"].head(TOP_COMMUNITIES).tolist()
+            if str(name).strip()
+        ]
+    else:
+        unknown = []
+        seen = set()
+        for raw in communities:
+            label = str(raw or "").strip()
+            key = label.casefold()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            if key in known_regions:
+                selected.append((known_regions[key], "region"))
+            elif key in known_countries:
+                selected.append((known_countries[key], "country"))
+            else:
+                unknown.append(label)
+        if len(seen) > MAX_COMMUNITIES:
+            raise ValueError(f"Select at most {MAX_COMMUNITIES} communities")
+        if unknown:
+            raise LookupError("Unknown communities: " + ", ".join(unknown))
+
+    geo_ids = frame["GEO_ID"].astype(str).dropna().unique().tolist() if "GEO_ID" in frame.columns else []
+    margin_index = _origin_margins(geo_ids[0]) if len(geo_ids) == 1 else {"countries": {}, "values": {}}
+    lookup = margin_index["countries"]
+
+    series = []
+    for label, kind in selected:
+        if kind == "region":
+            subset = frame[frame["region"].astype(str).str.casefold() == label.casefold()]
+            margins = _region_margins(subset, lookup, margin_index["values"])
+        else:
+            subset = frame[frame["country"].str.casefold() == label.casefold()]
+            margins = {
+                year: lookup.get((year, label.casefold()))
+                for year in subset["year"].dropna().astype(int).unique()
+            }
+        series.append({
+            "label": label,
+            "type": kind,
+            "points": _community_points(subset, margins),
+        })
+
+    return {
+        "geography": geography_name,
+        "defaults": using_defaults,
+        "series": series,
+    }
+
+
 def get_country_of_origin(city: str = None, latest_only: bool = True):
     df = _load("country_of_origin.parquet")
     if city:

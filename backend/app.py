@@ -56,6 +56,24 @@ def origin_trend():
     region = request.args.get("region", "")
     return jsonify(data_store.get_origin_trend(country=country, region=region))
 
+@app.get("/api/community-trends")
+def community_trends():
+    city = request.args.get("city", "")
+    repeated = [part.strip() for part in request.args.getlist("community") if part.strip()]
+    raw = request.args.get("communities", "")
+    if repeated:
+        communities = repeated
+    elif "|" in raw:
+        communities = [part.strip() for part in raw.split("|") if part.strip()]
+    else:
+        communities = [part.strip() for part in raw.split(",") if part.strip()]
+    try:
+        return jsonify(data_store.get_community_trends(city, communities or None))
+    except LookupError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
 @app.get("/api/continent-trend")
 def continent_trend():
     scope = request.args.get("scope", "state")

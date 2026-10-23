@@ -93,8 +93,9 @@ export default function InstructionsModal({ onClose }) {
               </li>
               <li>
                 After you select places, Overview compares them, and City Metrics
-                and Origins narrow to that list. On Trends, Selected uses the
-                same list.
+                and Origins narrow to that list. On Trends, Across places compares
+                one origin in the selected places. Within a place compares several
+                countries or regions in one city or statewide.
               </li>
               <li>
                 On Origins, Search a country across cities uses that same

@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { fetchCountryNames, fetchOriginTrend } from '../api/cities'
+import CommunityTrends from './CommunityTrends'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceLine,
@@ -113,9 +114,12 @@ export default function TrendsView({
   embedMode,
   initialMetric,
   initialCountry = '',
+  initialGeography = '',
+  initialCommunities = [],
   placeTypeFilter = 'all',
   allCities = [],
 }) {
+  const [trendMode, setTrendMode] = useState(embedMode === 'communities' ? 'within' : 'across')
   const [origin, setOrigin] = useState(
     ORIGINS.some((item) => item.key === initialMetric) ? initialMetric : 'all',
   )
@@ -172,6 +176,7 @@ export default function TrendsView({
   }, [])
 
   useEffect(() => {
+    if (trendMode === 'within') return undefined
     setLoading(true)
     const request = matchedCountry
       ? fetchOriginTrend({ country: matchedCountry })
@@ -186,7 +191,7 @@ export default function TrendsView({
         setLoading(false)
       })
     return undefined
-  }, [origin, matchedCountry])
+  }, [origin, matchedCountry, trendMode])
 
   const chartData = useMemo(() => {
     let rows = data
@@ -243,6 +248,7 @@ export default function TrendsView({
 
   useEffect(() => {
     const handleDownload = (event) => {
+      if (trendMode === 'within') return
       if (event.detail?.tab !== 'Trends') return
       if (!exportRows.length) return
 
@@ -252,7 +258,7 @@ export default function TrendsView({
 
     window.addEventListener('download-active-tab', handleDownload)
     return () => window.removeEventListener('download-active-tab', handleDownload)
-  }, [exportRows, origin, matchedCountry])
+  }, [exportRows, origin, matchedCountry, trendMode])
 
   const valueFormat = 'count'
   const seriesLabel = matchedCountry
@@ -278,6 +284,45 @@ export default function TrendsView({
 
   return (
     <div style={{ padding: '1rem' }}>
+      {!embedMode && (
+        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem' }}>
+          {[
+            ['across', 'Across places'],
+            ['within', 'Within a place'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={trendMode === value}
+              onClick={() => setTrendMode(value)}
+              style={{
+                padding: '0.4rem 0.85rem',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                background: trendMode === value ? '#732487' : '#ffffff',
+                color: trendMode === value ? '#fff' : '#6f6f6f',
+                border: trendMode === value ? '1px solid #732487' : '1px solid #c2c2c2',
+                fontSize: '0.85rem',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {trendMode === 'within' && (
+        <CommunityTrends
+          selectedCities={selectedCities}
+          allCities={allCities}
+          initialGeography={initialGeography}
+          initialCommunities={initialCommunities}
+          embedMode={Boolean(embedMode)}
+        />
+      )}
+
+      {trendMode === 'across' && (
+      <>
       {!embedMode && <h2 style={{ marginBottom: '1rem' }}>{seriesLabel}, 2012–2024</h2>}
 
       {embedMode !== 'metric' && (
@@ -527,6 +572,8 @@ export default function TrendsView({
             ? `No residents born in ${matchedCountry} for this geography. Try All Gateway Cities.`
             : 'No data for this place of birth. Try All Gateway Cities.'}
         </div>
+      )}
+      </>
       )}
     </div>
   )

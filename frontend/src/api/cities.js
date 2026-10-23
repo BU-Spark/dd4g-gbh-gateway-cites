@@ -129,6 +129,13 @@ export async function fetchOriginTrend({ country, region } = {}) {
   return fetchJson(`/api/origin-trend${query ? `?${query}` : ""}`);
 }
 
+export async function fetchCommunityTrends({ city, communities = [] } = {}) {
+  const params = new URLSearchParams();
+  if (city) params.set("city", city);
+  communities.forEach((name) => params.append("community", name));
+  return fetchJson(`/api/community-trends?${params.toString()}`);
+}
+
 export async function fetchTimeSeries({ city, metric } = {}) {
   const params = new URLSearchParams();
   if (city) params.set("city", city);
