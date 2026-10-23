@@ -63,52 +63,11 @@ export default function InstructionsModal({ onClose }) {
           </section>
 
           <section>
-            <h3>Using the city filter</h3>
+            <h3>Acknowledgements</h3>
             <p>
-              The panel on the left, labeled Filter Cities, chooses which places
-              the charts describe.
-            </p>
-            <ul>
-              <li>
-                A purple dot marks a Gateway City. A gray dot marks another
-                Massachusetts municipality. The same dots appear beside each
-                name in the search list.
-              </li>
-              <li>
-                Click Gateway Cities to limit every chart to those places.
-                Click Other Municipalities to limit every chart to the other
-                Massachusetts municipalities. Click the active button again to
-                clear that filter. The search list follows the same choice.
-              </li>
-              <li>
-                Type in Search cities, then click a name to add it. Selected
-                places appear as tags under the search box.
-              </li>
-              <li>Click × on a tag to remove that place, or Clear all to start over.</li>
-              <li>
-                With no filter and nothing selected, Overview shows Massachusetts
-                statewide and City Metrics shows every place. Turning on Gateway
-                Cities or Other Municipalities changes Overview, City Metrics,
-                Origins, and Trends.
-              </li>
-              <li>
-                After you select places, Overview compares them, and City Metrics
-                and Origins narrow to that list. On Trends, Across places compares
-                one origin in the selected places. Within a place compares several
-                countries or regions in one city or statewide.
-              </li>
-              <li>
-                On Origins, Search a country across cities uses that same
-                selection. If Lowell is selected on Overview, a search for
-                Cambodia shows only Lowell until you remove it or click Clear all.
-              </li>
-              <li>
-                Show Gateway Only, on City Metrics and Origins, limits the chart
-                to Gateway Cities.
-              </li>
-            </ul>
-            <p>
-              Download CSV saves the data for the tab you are currently viewing.
+              The University of Massachusetts Donahue Institute served as a
+              technical consultant on the usage of U.S. Census Bureau data for
+              this dashboard.
             </p>
           </section>
         </div>

@@ -92,8 +92,8 @@ body {
 }
 
 .sidebar {
-  width: 220px;
-  min-width: 220px;
+  width: 280px;
+  min-width: 280px;
   background: var(--gbh-surface);
   border-right: 1px solid var(--gbh-border);
   padding: 1rem;
@@ -105,14 +105,14 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--gbh-muted);
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.45rem;
 }
 
-.type-legend {
+.filter-help {
   font-size: 0.75rem;
-  line-height: 1.35;
+  line-height: 1.4;
   color: var(--gbh-muted);
-  margin: -0.35rem 0 0.5rem;
+  margin: 0 0 0.55rem;
 }
 
 .city-type-group {

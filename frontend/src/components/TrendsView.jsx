@@ -125,9 +125,15 @@ export default function TrendsView({
   )
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(false)
-  const [cityFilter, setCityFilter] = useState(
-    embedMode && selectedCities.length === 0 ? 'gateway' : 'selected',
-  )
+  const [cityFilter, setCityFilter] = useState(() => {
+    if (selectedCities.length > 0 || placeTypeFilter === 'gateway' || placeTypeFilter === 'other') {
+      return 'selected'
+    }
+    // Embeds with no sidebar selection stay on Gateway Cities.
+    // The dashboard shows every Massachusetts place until the user filters.
+    if (embedMode) return 'gateway'
+    return 'all'
+  })
   const [countryNames, setCountryNames] = useState([])
   const [countryQuery, setCountryQuery] = useState(embedMode === 'country' ? initialCountry : '')
   const [countryMenuOpen, setCountryMenuOpen] = useState(false)
@@ -149,17 +155,18 @@ export default function TrendsView({
   useEffect(() => {
     if (placeTypeFilter !== 'all' || selectedCities.length > 0) {
       setCityFilter('selected')
+    } else if (!embedMode) {
+      setCityFilter((current) => (current === 'selected' ? 'all' : current))
     }
-  }, [sidebarKey, placeTypeFilter, selectedCities])
+  }, [sidebarKey, placeTypeFilter, selectedCities, embedMode])
 
   const activeCities = useMemo(() => {
     if (cityFilter === 'gateway') return GATEWAY_CITIES
     if (cityFilter === 'all') return null
     if (selectedCities.length > 0) return selectedCities
     if (typeCities.length > 0) return typeCities
-    if (matchedCountry) return []
     return null
-  }, [cityFilter, selectedCities, matchedCountry, typeCities])
+  }, [cityFilter, selectedCities, typeCities])
 
   const countrySuggestions = useMemo(() => {
     const query = countryQuery.trim().toLowerCase()
@@ -403,9 +410,6 @@ export default function TrendsView({
           {matchedCountry && cityFilter === 'selected' && selectedCities.length === 0 && typeCities.length > 0
             ? ` Limited to ${placeTypeFilter === 'gateway' ? 'Gateway Cities' : 'other municipalities'}.`
             : ''}
-          {matchedCountry && cityFilter === 'selected' && selectedCities.length === 0 && typeCities.length === 0
-            ? ' Choose All Gateway Cities to draw the lines.'
-            : ''}
         </p>
       </div>
       )}
@@ -569,8 +573,8 @@ export default function TrendsView({
       {!loading && chartData.length === 0 && (
         <div style={{ color: '#676767', padding: '2rem', textAlign: 'center' }}>
           {matchedCountry
-            ? `No residents born in ${matchedCountry} for this geography. Try All Gateway Cities.`
-            : 'No data for this place of birth. Try All Gateway Cities.'}
+            ? `No residents born in ${matchedCountry} for this geography.${cityFilter === 'all' ? '' : ' Try All MA Towns and Cities.'}`
+            : `No data for this place of birth.${cityFilter === 'all' ? '' : ' Try All MA Towns and Cities.'}`}
         </div>
       )}
       </>

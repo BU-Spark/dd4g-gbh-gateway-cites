@@ -170,8 +170,15 @@ export default function App() {
       <div className="layout">
         <aside className="sidebar">
           <h3>Filter Cities</h3>
-          <p className="type-legend">
-            These colors match the dots in the search list.
+          <p className="filter-help">
+            Choose which places the charts describe. Purple dots mark Gateway
+            Cities. Gray dots mark other Massachusetts municipalities.
+          </p>
+          <p className="filter-help">
+            Click Gateway Cities or Other Municipalities to limit every chart,
+            then click the active button again to clear it. Search for a city
+            and click its name to add it. Click × on a tag to remove it, or
+            Clear all to start over.
           </p>
 
           <div className="city-type-group">
