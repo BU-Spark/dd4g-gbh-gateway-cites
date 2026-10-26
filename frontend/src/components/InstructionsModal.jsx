@@ -56,7 +56,7 @@ export default function InstructionsModal({ onClose }) {
             </ul>
             <p>
               Data come from U.S. Census Bureau ACS 5-year estimates. The latest
-              release covers 2020–2024; Trends also includes releases back to 2012.
+              release covers 2020–2024; both trend tabs also include releases back to 2012.
               These are survey estimates, so small differences may fall within the
               margin of error.
             </p>

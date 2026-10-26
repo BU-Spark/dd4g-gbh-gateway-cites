@@ -175,7 +175,7 @@ export default function CommunityTrends({
 
   useEffect(() => {
     const handleDownload = (event) => {
-      if (event.detail?.tab !== 'Trends' || !exportRows.length) return
+      if (event.detail?.tab !== 'Trends by Municipality' || !exportRows.length) return
       const slug = placeLabel.toLowerCase().replace(/\s+/g, '_')
       downloadCSV(`community_trends_${slug}.csv`, exportRows)
     }

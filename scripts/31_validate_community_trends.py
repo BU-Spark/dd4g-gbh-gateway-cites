@@ -38,10 +38,14 @@ def value_in(series: dict, year: int):
 def main() -> int:
     failures: list[str] = []
     source = pd.read_parquet(PROCESSED)
-    lowell = source[(source["city"] == "Lowell") & (source["year"] == 2024)]
+    lowell_all = source[source["city"] == "Lowell"]
+    earliest_lowell = lowell_all["year"].min()
+    reported_earlier = set(lowell_all.loc[lowell_all["year"] == earliest_lowell, "country"])
+    lowell = lowell_all[lowell_all["year"] == 2024]
     expected_top = (
         lowell.groupby("country")["estimate"]
         .sum()
+        .loc[lambda estimates: estimates.index.isin(reported_earlier)]
         .sort_values(ascending=False)
         .head(5)
         .index.tolist()

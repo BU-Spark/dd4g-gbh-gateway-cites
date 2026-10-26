@@ -293,8 +293,11 @@ def get_community_trends(geography: str, communities: list[str] | None = None):
     """Compare several origin communities inside one city or statewide.
 
     With no communities, the series are the five largest countries of origin
-    in the latest year. A region series is the sum of that region's leaf
-    countries, which do not overlap in the processed place-of-birth file.
+    in the latest year that were also published in the earliest year. Later
+    ACS tables added countries such as Brazil, so those stay out of the
+    default and every line can start at the beginning of the span. A region
+    series is the sum of that region's leaf countries, which do not overlap
+    in the processed place-of-birth file.
     """
     requested = str(geography or "").strip()
     if not requested:
@@ -325,13 +328,16 @@ def get_community_trends(geography: str, communities: list[str] | None = None):
     selected = []
     if using_defaults:
         latest_year = frame["year"].max()
+        earliest_year = frame["year"].min()
+        reported_earlier = set(frame.loc[frame["year"] == earliest_year, "country"].astype(str))
         ranked = (
             frame[frame["year"] == latest_year]
             .groupby("country", dropna=False)["estimate"]
             .sum()
             .reset_index()
-            .sort_values(["estimate", "country"], ascending=[False, True])
         )
+        ranked = ranked[ranked["country"].astype(str).isin(reported_earlier)]
+        ranked = ranked.sort_values(["estimate", "country"], ascending=[False, True])
         selected = [
             (str(name), "country")
             for name in ranked["country"].head(TOP_COMMUNITIES).tolist()

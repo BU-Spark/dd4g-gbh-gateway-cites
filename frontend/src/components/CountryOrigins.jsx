@@ -229,7 +229,9 @@ export default function CountryOrigins({
   const byCountrySearchData = useMemo(() => {
     if (!countrySearch.trim()) return []
     const q = countrySearch.toLowerCase()
-    let scopedRows = allData.filter(r => r.city !== STATEWIDE_LABEL && r.city !== GATEWAY_LABEL)
+    let scopedRows = allData.filter(r => (
+      r.city !== STATEWIDE_LABEL && r.city !== GATEWAY_LABEL && r.city !== OTHER_LABEL
+    ))
     if (searchScopeCities) {
       scopedRows = scopedRows.filter(r => searchScopeCities.has(r.city))
     } else if (gatewayOnly) {
@@ -247,7 +249,9 @@ export default function CountryOrigins({
   const suggestions = useMemo(() => {
     if (!countrySearch.trim() || countrySearch.length < 2) return []
     const q = countrySearch.toLowerCase()
-    let scopedRows = allData.filter(r => r.city !== STATEWIDE_LABEL && r.city !== GATEWAY_LABEL)
+    let scopedRows = allData.filter(r => (
+      r.city !== STATEWIDE_LABEL && r.city !== GATEWAY_LABEL && r.city !== OTHER_LABEL
+    ))
     if (searchScopeCities) {
       scopedRows = scopedRows.filter(r => searchScopeCities.has(r.city))
     } else if (gatewayOnly) {

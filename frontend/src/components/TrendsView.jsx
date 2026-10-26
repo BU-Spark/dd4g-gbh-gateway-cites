@@ -112,6 +112,7 @@ const downloadCSV = (filename, rows) => {
 export default function TrendsView({
   selectedCities,
   embedMode,
+  mode,
   initialMetric,
   initialCountry = '',
   initialGeography = '',
@@ -119,7 +120,9 @@ export default function TrendsView({
   placeTypeFilter = 'all',
   allCities = [],
 }) {
-  const [trendMode, setTrendMode] = useState(embedMode === 'communities' ? 'within' : 'across')
+  const [trendMode, setTrendMode] = useState(
+    mode || (embedMode === 'communities' ? 'within' : 'across'),
+  )
   const [origin, setOrigin] = useState(
     ORIGINS.some((item) => item.key === initialMetric) ? initialMetric : 'all',
   )
@@ -256,7 +259,7 @@ export default function TrendsView({
   useEffect(() => {
     const handleDownload = (event) => {
       if (trendMode === 'within') return
-      if (event.detail?.tab !== 'Trends') return
+      if (event.detail?.tab !== 'Trends by Origin') return
       if (!exportRows.length) return
 
       const metricSlug = (matchedCountry || origin).toLowerCase().replace(/\s+/g, '_')
@@ -291,7 +294,7 @@ export default function TrendsView({
 
   return (
     <div style={{ padding: '1rem' }}>
-      {!embedMode && (
+      {!embedMode && !mode && (
         <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem' }}>
           {[
             ['across', 'Across places'],

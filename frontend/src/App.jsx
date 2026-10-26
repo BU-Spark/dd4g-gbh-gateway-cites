@@ -316,7 +316,8 @@ export default function App() {
                 "Overview",
                 "City Metrics",
                 "Origins",
-                "Trends",
+                "Trends by Origin",
+                "Trends by Municipality",
               ].map((tab) => (
                 <button
                   key={tab}
@@ -361,8 +362,18 @@ export default function App() {
             />
           )}
 
-          {activeTab === "Trends" && (
+          {activeTab === "Trends by Origin" && (
             <TrendsView
+              mode="across"
+              selectedCities={selectedCities}
+              placeTypeFilter={placeTypeFilter}
+              allCities={cities}
+            />
+          )}
+
+          {activeTab === "Trends by Municipality" && (
+            <TrendsView
+              mode="within"
               selectedCities={selectedCities}
               placeTypeFilter={placeTypeFilter}
               allCities={cities}
